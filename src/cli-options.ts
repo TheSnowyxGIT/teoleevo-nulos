@@ -14,10 +14,13 @@ Options:
   --fps <nombre>         Rafraîchissement entre 10 et 60 (défaut: 30)
   --floor <dB>           Plancher des vumètres, de -100 à -30 (défaut: -70)
   --helper <chemin>      Chemin explicite vers AudioCapture.exe
+  --preset-dir <chemin>  Dossier de presets .milk (recherche récursive)
+  --texture-dir <chemin> Dossier de textures MilkDrop
+  --renderer <chemin>    Chemin explicite vers Visualizer.exe/.dll
   -h, --help             Affiche cette aide
 
 Dans l'application:
-  Espace  pause/reprise     O  options     H  aide     Q  quitter
+  P  presets     V  fenêtre visuelle     O  options     H  aide     Q  quitter
 `;
 
 export interface ParsedCli {
@@ -78,6 +81,18 @@ export function parseCli(args: string[]): ParsedCli {
       }
       case '--helper':
         options.helperPath = readValue(args, index, argument);
+        index += 1;
+        break;
+      case '--preset-dir':
+        options.presetDirectory = readValue(args, index, argument);
+        index += 1;
+        break;
+      case '--texture-dir':
+        options.textureDirectory = readValue(args, index, argument);
+        index += 1;
+        break;
+      case '--renderer':
+        options.rendererPath = readValue(args, index, argument);
         index += 1;
         break;
       case '-h':

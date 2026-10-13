@@ -1,7 +1,7 @@
 {
   "name": "teoleevo-nulos",
   "version": "1.0.0",
-  "description": "Live Windows desktop audio spectrum visualizer for the terminal",
+  "description": "Windows audio spectrum and MilkDrop preset controller for the terminal",
   "main": "dist/cli.js",
   "types": "dist/cli.d.ts",
   "bin": {
@@ -20,6 +20,10 @@
     "helper:build": "dotnet build native/AudioCapture/AudioCapture.csproj --configuration Release",
     "helper:build:wsl": "'/mnt/c/Program Files/dotnet/dotnet.exe' build native/AudioCapture/AudioCapture.csproj --configuration Release",
     "helper:publish": "dotnet publish native/AudioCapture/AudioCapture.csproj --configuration Release --runtime win-x64 --self-contained true",
+    "renderer:build": "dotnet build native/Visualizer/Visualizer.csproj --configuration Release",
+    "renderer:build:wsl": "'/mnt/c/Program Files/dotnet/dotnet.exe' build native/Visualizer/Visualizer.csproj --configuration Release",
+    "renderer:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-projectm.ps1",
+    "renderer:install:wsl": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$(wslpath -w scripts/install-projectm.ps1)\"",
     "test": "tsx --test tests/**/*.test.ts"
   },
   "keywords": [],

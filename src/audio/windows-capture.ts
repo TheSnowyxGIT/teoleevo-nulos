@@ -3,6 +3,7 @@ import {existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {createInterface} from 'node:readline';
 import path from 'node:path';
+import {isWsl, toLocalPath} from '../platform.js';
 import type {
   AudioDevice,
   CaptureEvents,
@@ -30,16 +31,12 @@ interface HelperCommand {
 }
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
-const isWsl =
-  process.platform === 'linux' &&
-  (Boolean(process.env['WSL_DISTRO_NAME']) || existsSync('/proc/sys/fs/binfmt_misc/WSLInterop'));
-
 function helperCommand(
   options: WindowsCaptureOptions,
   helperArguments: string[],
 ): HelperCommand {
   if (options.helperPath) {
-    const explicitPath = path.resolve(options.helperPath);
+    const explicitPath = path.resolve(toLocalPath(options.helperPath));
     if (!existsSync(explicitPath)) {
       throw new Error(`Helper audio introuvable: ${explicitPath}`);
     }
@@ -264,11 +261,19 @@ export class WindowsCapture implements CaptureSource {
     this.child = undefined;
 
     const closed = new Promise<void>(resolve => child.once('close', () => resolve()));
-    if (child.stdin.writable) child.stdin.write('quit\n');
+    if (child.stdin.writable) {
+      child.stdin.end('quit\n');
+    }
     const graceful = await Promise.race([
       closed.then(() => true),
       new Promise<false>(resolve => setTimeout(() => resolve(false), 1_000)),
     ]);
-    if (!graceful && !child.killed) child.kill();
+    if (!graceful && !child.killed) {
+      child.kill();
+      await Promise.race([
+        closed,
+        new Promise<void>(resolve => setTimeout(resolve, 1_000)),
+      ]);
+    }
   }
 }

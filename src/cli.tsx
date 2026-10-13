@@ -3,7 +3,13 @@ import React from 'react';
 import {render} from 'ink';
 import {parseCli, HELP_TEXT} from './cli-options.js';
 import {createCapture} from './audio/create-capture.js';
+import {
+  findDefaultPresetDirectory,
+  inferTextureDirectory,
+  scanPresets,
+} from './presets/catalog.js';
 import {App} from './ui/app.js';
+import {createVisualizer} from './visualizer/create-visualizer.js';
 
 async function main(): Promise<void> {
   try {
@@ -17,8 +23,18 @@ async function main(): Promise<void> {
       throw new Error('Teoleevo doit être lancé dans un terminal interactif.');
     }
 
+    const presetDirectory = options.presetDirectory ?? findDefaultPresetDirectory();
+    const presets = presetDirectory ? await scanPresets(presetDirectory) : [];
+    options.presetDirectory = presetDirectory;
+    options.textureDirectory =
+      options.textureDirectory ??
+      (presetDirectory ? inferTextureDirectory(presetDirectory) : undefined);
+
     const source = createCapture(options);
-    const instance = render(<App source={source} options={options} />);
+    const visualizer = createVisualizer(options);
+    const instance = render(
+      <App source={source} options={options} presets={presets} visualizer={visualizer} />,
+    );
     await instance.waitUntilExit();
   } catch (error) {
     process.stderr.write(

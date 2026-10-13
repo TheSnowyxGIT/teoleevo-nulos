@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Box, Text, useApp, useInput, useWindowSize} from 'ink';
 import {
   BAND_LABELS,
@@ -17,15 +17,21 @@ import type {
   CaptureInfo,
   CaptureSource,
   CaptureStatus,
+  Preset,
   SmoothingProfile,
+  VisualizerController,
+  VisualizerStatus,
 } from '../types.js';
 import {HelpPanel} from './help-panel.js';
 import {Meter} from './meter.js';
+import {PresetPanel} from './preset-panel.js';
 import {SettingsPanel} from './settings-panel.js';
 
 interface AppProps {
   source: CaptureSource;
   options: AppOptions;
+  presets: Preset[];
+  visualizer: VisualizerController;
 }
 
 const BANDS: BandName[] = ['bass', 'mids', 'treble'];
@@ -36,7 +42,7 @@ function nextInList<T>(items: readonly T[], current: T, direction: 1 | -1): T {
   return items[(currentIndex + direction + items.length) % items.length] ?? current;
 }
 
-export function App({source, options}: AppProps): React.JSX.Element {
+export function App({source, options, presets, visualizer}: AppProps): React.JSX.Element {
   const {exit} = useApp();
   const {columns} = useWindowSize();
   const [status, setStatus] = useState<CaptureStatus>({
@@ -57,8 +63,14 @@ export function App({source, options}: AppProps): React.JSX.Element {
   const [smoothing, setSmoothing] = useState<SmoothingProfile>('balanced');
   const [meterFloor, setMeterFloor] = useState(options.meterFloor);
   const [showHistory, setShowHistory] = useState(true);
-  const [panel, setPanel] = useState<'none' | 'settings' | 'help'>('none');
+  const [panel, setPanel] = useState<'none' | 'settings' | 'help' | 'presets'>('none');
   const [selectedRow, setSelectedRow] = useState(0);
+  const [presetQuery, setPresetQuery] = useState('');
+  const [presetIndex, setPresetIndex] = useState(0);
+  const [currentPreset, setCurrentPreset] = useState<Preset>();
+  const [visualizerStatus, setVisualizerStatus] = useState<VisualizerStatus>(
+    visualizer.initialStatus,
+  );
 
   const pausedRef = useRef(paused);
   const smoothingRef = useRef(smoothing);
@@ -107,6 +119,44 @@ export function App({source, options}: AppProps): React.JSX.Element {
     };
   }, [source]);
 
+  useEffect(() => visualizer.subscribe(setVisualizerStatus), [visualizer]);
+
+  useEffect(() => {
+    if (info?.deviceId) void visualizer.selectAudioDevice(info.deviceId);
+  }, [info?.deviceId, visualizer]);
+
+  useEffect(
+    () => () => {
+      void visualizer.stop();
+    },
+    [visualizer],
+  );
+
+  const filteredPresets = useMemo(() => {
+    const normalizedQuery = presetQuery.trim().toLocaleLowerCase();
+    return presets.filter(
+      preset =>
+        normalizedQuery.length === 0 ||
+        preset.relativePath.toLocaleLowerCase().includes(normalizedQuery),
+    );
+  }, [presets, presetQuery]);
+
+  const showPreset = (preset: Preset): void => {
+    setCurrentPreset(preset);
+    setPanel('none');
+    void visualizer.showPreset(preset);
+  };
+
+  const cyclePreset = (direction: 1 | -1): void => {
+    if (presets.length === 0) return;
+    const currentIndex = Math.max(
+      0,
+      presets.findIndex(preset => preset.id === currentPreset?.id),
+    );
+    const preset = presets[(currentIndex + direction + presets.length) % presets.length];
+    if (preset) showPreset(preset);
+  };
+
   const cycleDevice = (direction: 1 | -1): void => {
     if (devices.length < 2) return;
     const currentIndex = Math.max(
@@ -139,8 +189,36 @@ export function App({source, options}: AppProps): React.JSX.Element {
   };
 
   useInput((input, key) => {
+    if (panel === 'presets') {
+      if (key.escape || input.toLowerCase() === 'p') {
+        setPanel('none');
+      } else if (key.upArrow) {
+        setPresetIndex(index => Math.max(0, index - 1));
+      } else if (key.downArrow) {
+        setPresetIndex(index =>
+          Math.min(Math.max(0, filteredPresets.length - 1), index + 1),
+        );
+      } else if (key.pageUp) {
+        setPresetIndex(index => Math.max(0, index - 8));
+      } else if (key.pageDown) {
+        setPresetIndex(index =>
+          Math.min(Math.max(0, filteredPresets.length - 1), index + 8),
+        );
+      } else if (key.return) {
+        const preset = filteredPresets[presetIndex];
+        if (preset) showPreset(preset);
+      } else if (key.backspace || key.delete) {
+        setPresetQuery(query => query.slice(0, -1));
+        setPresetIndex(0);
+      } else if (!key.ctrl && !key.meta && input && !/\p{C}/u.test(input)) {
+        setPresetQuery(query => query + input);
+        setPresetIndex(0);
+      }
+      return;
+    }
+
     if (input.toLowerCase() === 'q' || key.escape) {
-      void source.stop().finally(exit);
+      void Promise.all([source.stop(), visualizer.stop()]).finally(exit);
       return;
     }
 
@@ -161,6 +239,24 @@ export function App({source, options}: AppProps): React.JSX.Element {
     if (input === ' ') setPaused(current => !current);
     else if (input.toLowerCase() === 'o') setPanel('settings');
     else if (input.toLowerCase() === 'h') setPanel('help');
+    else if (input.toLowerCase() === 'p') {
+      setPresetQuery('');
+      setPresetIndex(
+        Math.max(0, presets.findIndex(preset => preset.id === currentPreset?.id)),
+      );
+      setPanel('presets');
+    } else if (input.toLowerCase() === 'v') {
+      if (visualizerStatus.state === 'running' || visualizerStatus.state === 'starting') {
+        void visualizer.stop();
+      } else if (currentPreset) {
+        void visualizer.showPreset(currentPreset);
+      } else {
+        const firstVisualPreset =
+          presets.find(preset => !preset.relativePath.startsWith('! Transition')) ?? presets[0];
+        if (firstVisualPreset) showPreset(firstVisualPreset);
+      }
+    } else if (input.toLowerCase() === 'n') cyclePreset(1);
+    else if (input.toLowerCase() === 'b') cyclePreset(-1);
     else if (input.toLowerCase() === 'd') cycleDevice(1);
     else if (input.toLowerCase() === 's') cycleSmoothing(1);
   });
@@ -169,6 +265,12 @@ export function App({source, options}: AppProps): React.JSX.Element {
   const statusColor =
     status.state === 'running' ? 'green' : status.state === 'error' ? 'red' : 'yellow';
   const statusDot = status.state === 'running' ? '●' : status.state === 'error' ? '×' : '◌';
+  const visualizerColor =
+    visualizerStatus.state === 'running'
+      ? 'magenta'
+      : visualizerStatus.state === 'error' || visualizerStatus.state === 'unavailable'
+        ? 'red'
+        : 'gray';
 
   return (
     <Box flexDirection="column" paddingX={1} width={contentWidth}>
@@ -212,6 +314,21 @@ export function App({source, options}: AppProps): React.JSX.Element {
         ))}
       </Box>
 
+      <Box borderStyle="round" borderColor={visualizerColor} paddingX={1} marginBottom={1}>
+        <Box flexDirection="column" flexGrow={1}>
+          <Text wrap="truncate-end">
+            <Text dimColor>Preset </Text>
+            {currentPreset?.name ?? 'Aucun preset sélectionné'}
+          </Text>
+          <Text dimColor wrap="truncate-end">
+            {visualizerStatus.message}
+          </Text>
+        </Box>
+        <Text color={visualizerColor}>
+          {visualizerStatus.state === 'running' ? ' VISUEL ACTIF' : ` ${presets.length} .MILK`}
+        </Text>
+      </Box>
+
       {status.state === 'error' ? (
         <Box borderStyle="single" borderColor="red" paddingX={1} marginBottom={1}>
           <Text color="red">{status.message}</Text>
@@ -229,9 +346,16 @@ export function App({source, options}: AppProps): React.JSX.Element {
         />
       ) : panel === 'help' ? (
         <HelpPanel />
+      ) : panel === 'presets' ? (
+        <PresetPanel
+          presets={filteredPresets}
+          query={presetQuery}
+          selectedIndex={presetIndex}
+          currentPreset={currentPreset}
+        />
       ) : (
         <Box justifyContent="space-between">
-          <Text dimColor>Espace pause · O options · H aide · Q quitter</Text>
+          <Text dimColor>P presets · V visuel · O options · H aide · Q quitter</Text>
           <Text dimColor>{SMOOTHING_PROFILES[smoothing].label} · {meterFloor} dB</Text>
         </Box>
       )}

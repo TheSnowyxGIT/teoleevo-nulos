@@ -21,6 +21,12 @@ test('parseCli accepts supported analysis options', () => {
     '-80',
     '--device',
     'speaker-id',
+    '--preset-dir',
+    'presets',
+    '--texture-dir',
+    'textures',
+    '--renderer',
+    'projectMSDL.exe',
   ]);
 
   assert.deepEqual(parsed.options, {
@@ -29,6 +35,9 @@ test('parseCli accepts supported analysis options', () => {
     fps: 60,
     meterFloor: -80,
     deviceId: 'speaker-id',
+    presetDirectory: 'presets',
+    textureDirectory: 'textures',
+    rendererPath: 'projectMSDL.exe',
   });
 });
 

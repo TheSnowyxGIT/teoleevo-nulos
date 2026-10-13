@@ -14,6 +14,15 @@ export function HelpPanel(): React.JSX.Element {
         <Text bold>O</Text> Ouvrir les options interactives
       </Text>
       <Text>
+        <Text bold>P</Text> Chercher et ouvrir un preset MilkDrop
+      </Text>
+      <Text>
+        <Text bold>V</Text> Ouvrir / fermer la fenêtre de visualisation
+      </Text>
+      <Text>
+        <Text bold>N / B</Text> Preset suivant / précédent
+      </Text>
+      <Text>
         <Text bold>D</Text> Passer rapidement à la sortie audio suivante
       </Text>
       <Text>

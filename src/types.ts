@@ -51,4 +51,29 @@ export interface AppOptions {
   fps: number;
   meterFloor: number;
   helperPath?: string;
+  presetDirectory?: string;
+  textureDirectory?: string;
+  rendererPath?: string;
+}
+
+export interface Preset {
+  id: string;
+  name: string;
+  path: string;
+  relativePath: string;
+}
+
+export type VisualizerStatus =
+  | {state: 'stopped'; message: string}
+  | {state: 'starting'; message: string}
+  | {state: 'running'; message: string; preset: Preset}
+  | {state: 'error'; message: string}
+  | {state: 'unavailable'; message: string};
+
+export interface VisualizerController {
+  readonly initialStatus: VisualizerStatus;
+  subscribe(listener: (status: VisualizerStatus) => void): () => void;
+  selectAudioDevice(deviceId: string): Promise<void>;
+  showPreset(preset: Preset): Promise<void>;
+  stop(): Promise<void>;
 }
