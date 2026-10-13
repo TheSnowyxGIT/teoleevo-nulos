@@ -1,0 +1,47 @@
+{
+  "name": "teoleevo-nulos",
+  "version": "1.0.0",
+  "description": "Live Windows desktop audio spectrum visualizer for the terminal",
+  "main": "dist/cli.js",
+  "types": "dist/cli.d.ts",
+  "bin": {
+    "teoleevo": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "dev": "tsx src/cli.tsx --demo",
+    "dev:audio": "tsx src/cli.tsx",
+    "start": "node dist/cli.js",
+    "demo": "tsx src/cli.tsx --demo",
+    "helper:build": "dotnet build native/AudioCapture/AudioCapture.csproj --configuration Release",
+    "helper:build:wsl": "'/mnt/c/Program Files/dotnet/dotnet.exe' build native/AudioCapture/AudioCapture.csproj --configuration Release",
+    "helper:publish": "dotnet publish native/AudioCapture/AudioCapture.csproj --configuration Release --runtime win-x64 --self-contained true",
+    "test": "tsx --test tests/**/*.test.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.23.0",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@11.23.0",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "19.3.0",
+    "tsx": "4.23.15",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "ink": "8.0.0",
+    "react": "19.3.0"
+  }
+}
