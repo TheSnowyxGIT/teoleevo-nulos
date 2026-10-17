@@ -1,9 +1,8 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import type {AddressInfo} from 'node:net';
+import {ControlCommandBus, type ControlCommandListener} from './command-bus.js';
 import {CONTROL_PAGE} from './page.js';
 import type {ControlCatalog, ControlCommand, ControlState} from './types.js';
-
-type CommandListener = (command: ControlCommand) => void;
 
 const EMPTY_CATALOG: ControlCatalog = {
   devices: [],
@@ -13,7 +12,6 @@ const EMPTY_CATALOG: ControlCatalog = {
 };
 
 export class LocalControlServer {
-  private readonly listeners = new Set<CommandListener>();
   private readonly clients = new Set<ServerResponse>();
   private catalog: ControlCatalog = EMPTY_CATALOG;
   private state?: ControlState;
@@ -24,7 +22,10 @@ export class LocalControlServer {
   });
   private actualPort?: number;
 
-  constructor(private readonly requestedPort = 4317) {}
+  constructor(
+    private readonly requestedPort = 4317,
+    private readonly commandBus = new ControlCommandBus(),
+  ) {}
 
   get url(): string {
     return `http://127.0.0.1:${this.actualPort ?? this.requestedPort}`;
@@ -52,9 +53,8 @@ export class LocalControlServer {
     });
   }
 
-  subscribe(listener: CommandListener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+  subscribe(listener: ControlCommandListener): () => void {
+    return this.commandBus.subscribe(listener);
   }
 
   updateCatalog(catalog: ControlCatalog): void {
@@ -120,7 +120,7 @@ export class LocalControlServer {
       }
       try {
         const command = await this.readCommand(request);
-        for (const listener of this.listeners) listener(command);
+        this.commandBus.dispatch(command);
         this.sendJson(response, 202, {ok: true});
       } catch (error) {
         this.sendJson(response, 400, {

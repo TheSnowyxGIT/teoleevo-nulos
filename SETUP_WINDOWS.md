@@ -60,3 +60,22 @@ Press `P` to select a preset, `O` for options, `F` for fullscreen, and `Q` to qu
 
 If the terminal feels slow, open `O` and lower **FPS du terminal** to `5` or `8`.
 This does not change MilkDrop's rendering FPS.
+
+## Optional Telegram remote
+
+Create a bot with `@BotFather`, then:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Put `TEOLEEVO_TELEGRAM_TOKEN=your-token` in `.env`, start Teoleevo, and send
+`/start` to the bot. Copy the chat ID it replies with into `.env`:
+
+```dotenv
+TEOLEEVO_TELEGRAM_CHAT_ID=123456789
+```
+
+Restart Teoleevo. The private button panel is sent automatically. `/next`
+selects the next preset; every other text command is ignored. `.env` is ignored
+by Git. Missing Telegram values are loaded from `.env.example` as a fallback.

@@ -3,7 +3,9 @@ import React from 'react';
 import {render} from 'ink';
 import {parseCli, HELP_TEXT} from './cli-options.js';
 import {createCapture} from './audio/create-capture.js';
+import {ControlCommandBus} from './control/command-bus.js';
 import {LocalControlServer} from './control/server.js';
+import {loadLocalEnvironment} from './environment.js';
 import {
   findDefaultNestDropDirectory,
   findDefaultPresetDirectory,
@@ -12,11 +14,13 @@ import {
   scanPresets,
 } from './presets/catalog.js';
 import {optionsFromSettings, SettingsStore} from './persistence/settings-store.js';
+import {createTelegramRemoteFromEnvironment} from './telegram/remote.js';
 import {App} from './ui/app.js';
 import {createVisualizer} from './visualizer/create-visualizer.js';
 
 async function main(): Promise<void> {
   try {
+    loadLocalEnvironment();
     const settingsStore = new SettingsStore();
     const initialSettings = await settingsStore.load();
     const {options, help} = parseCli(
@@ -51,26 +55,34 @@ async function main(): Promise<void> {
 
     const source = createCapture(options);
     const visualizer = createVisualizer(options);
+    const commandBus = new ControlCommandBus();
     const controlServer = options.webEnabled
-      ? new LocalControlServer(options.webPort)
+      ? new LocalControlServer(options.webPort, commandBus)
       : undefined;
+    const telegramRemote = createTelegramRemoteFromEnvironment(commandBus);
     await controlServer?.start();
-    const instance = render(
-      <App
-        source={source}
-        options={options}
-        presets={presets}
-        visualizer={visualizer}
-        controlServer={controlServer}
-        initialSettings={initialSettings}
-        saveSettings={settings => settingsStore.save(settings)}
-      />,
-      {incrementalRendering: true},
-    );
+    telegramRemote?.start();
     try {
+      const instance = render(
+        <App
+          source={source}
+          options={options}
+          presets={presets}
+          visualizer={visualizer}
+          commandBus={commandBus}
+          controlServer={controlServer}
+          telegramEnabled={Boolean(telegramRemote)}
+          initialSettings={initialSettings}
+          saveSettings={settings => settingsStore.save(settings)}
+        />,
+        {incrementalRendering: true},
+      );
       await instance.waitUntilExit();
     } finally {
-      await controlServer?.stop();
+      await Promise.allSettled([
+        controlServer?.stop() ?? Promise.resolve(),
+        telegramRemote?.stop() ?? Promise.resolve(),
+      ]);
     }
   } catch (error) {
     process.stderr.write(

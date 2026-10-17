@@ -4,3 +4,5 @@ dist/
 native/**/bin/
 native/**/obj/
 *.log
+.env
+.env.local

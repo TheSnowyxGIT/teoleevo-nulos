@@ -17,6 +17,7 @@ pilotables sans interrompre le moteur de rendu.
 - rendu Ink limité indépendamment de l'analyse audio pour rester réactif ;
 - options interactives pour la sortie, la réactivité et l’échelle ;
 - contrôleur Chrome local synchronisé avec Ink sur `http://127.0.0.1:4317` ;
+- télécommande Telegram optionnelle par boutons, sans port Internet entrant ;
 - catalogue récursif, recherche instantanée et filtres de tags dans les presets `.milk` ;
 - quatre playlists système par tag et playlists personnalisées éditables ;
 - copie et fusion de playlists avec sauvegarde automatique des préférences ;
@@ -54,6 +55,32 @@ contrôlent le même moteur : niveaux audio, presets, playlists et leur édition
 sorties audio/vidéo, plein écran, auto-switch et réglages MilkDrop restent
 synchronisés. Le serveur écoute uniquement sur la machine locale. Utilisez
 `--no-web` pour le désactiver ou `--web-port <port>` pour changer son port.
+
+## Télécommande Telegram optionnelle
+
+Créez un bot avec `@BotFather`, puis copiez le fichier d’exemple local :
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Placez uniquement le token dans `.env`, lancez Teoleevo, puis envoyez `/start`
+au bot. Il répond avec votre chat ID sans exécuter de commande. Ajoutez cet ID
+et redémarrez l’application :
+
+```dotenv
+TEOLEEVO_TELEGRAM_TOKEN=123456:token-du-bot
+TEOLEEVO_TELEGRAM_CHAT_ID=123456789
+```
+
+Le bot accepte `/next` depuis le chat autorisé et envoie un panneau avec les
+boutons preset précédent/suivant, pause/reprise, moteur, plein écran,
+auto-switch et shuffle. Les autres messages texte ne pilotent jamais
+l’application. Le chat ID est vérifié sur chaque commande et chaque clic. Les
+anciennes commandes sont ignorées au démarrage et les problèmes Telegram
+n’interrompent pas Ink, Chrome, l’audio ou le visualiseur. `.env` est exclu de Git.
+Si une valeur Telegram manque dans `.env`, l’application la complète depuis
+`.env.example` comme configuration de secours.
 
 Depuis WSL, le projet peut employer le SDK .NET installé sur Windows :
 

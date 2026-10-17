@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Box, Text, useApp, useInput, useWindowSize} from 'ink';
+import type {ControlCommandBus} from '../control/command-bus.js';
 import type {LocalControlServer} from '../control/server.js';
 import type {ControlCommand} from '../control/types.js';
 import {
@@ -64,7 +65,9 @@ interface AppProps {
   options: AppOptions;
   presets: Preset[];
   visualizer: VisualizerController;
+  commandBus: ControlCommandBus;
   controlServer?: LocalControlServer;
+  telegramEnabled?: boolean;
   initialSettings: UserSettings;
   saveSettings(settings: UserSettings): Promise<void>;
 }
@@ -82,7 +85,9 @@ export function App({
   options,
   presets,
   visualizer,
+  commandBus,
   controlServer,
+  telegramEnabled = false,
   initialSettings,
   saveSettings,
 }: AppProps): React.JSX.Element {
@@ -923,8 +928,8 @@ export function App({
   };
 
   useEffect(
-    () => controlServer?.subscribe(command => controlCommandRef.current(command)),
-    [controlServer],
+    () => commandBus.subscribe(command => controlCommandRef.current(command)),
+    [commandBus],
   );
 
   useEffect(() => {
@@ -1279,12 +1284,16 @@ export function App({
         ? 'red'
         : 'gray';
   const compact = rows < 32;
+  const integrationLabel = [
+    controlServer ? `WEB ${controlServer.url}` : undefined,
+    telegramEnabled ? 'TELEGRAM' : undefined,
+  ].filter((value): value is string => Boolean(value)).join(' · ');
   const header = (
     <Box justifyContent="space-between">
       <Text bold color="cyan">
         TEOLEEVO{' '}
         <Text dimColor>
-          {controlServer ? `// WEB ${controlServer.url}` : '// LIVE AUDIO SPECTRUM'}
+          {integrationLabel ? `// ${integrationLabel}` : '// LIVE AUDIO SPECTRUM'}
         </Text>
       </Text>
       <Text color={statusColor}>
