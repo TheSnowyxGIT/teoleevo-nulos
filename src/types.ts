@@ -98,6 +98,16 @@ export interface VisualizerSettings {
   audioGain: number;
 }
 
+export interface VisualizerDisplay {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isPrimary: boolean;
+}
+
 export interface AppOptions {
   demo: boolean;
   deviceId?: string;
@@ -134,6 +144,8 @@ export type VisualizerStatus =
 export interface VisualizerController {
   readonly initialStatus: VisualizerStatus;
   subscribe(listener: (status: VisualizerStatus) => void): () => void;
+  listDisplays(): Promise<VisualizerDisplay[]>;
+  setFullscreen(enabled: boolean, display?: VisualizerDisplay): Promise<void>;
   selectAudioDevice(deviceId: string, deviceName?: string): Promise<void>;
   configure(settings: VisualizerSettings): Promise<void>;
   showPreset(preset: Preset): Promise<void>;

@@ -8,7 +8,7 @@ export const DEFAULT_OPTIONS: AppOptions = {
   beatNet: true,
   autoDropPresets: false,
   visualizerSettings: {
-    frameRate: 30,
+    frameRate: 60,
     speed: 1.07175,
     audioGain: 1,
   },

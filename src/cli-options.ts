@@ -27,7 +27,7 @@ Options:
   -h, --help             Affiche cette aide
 
 Dans l'application:
-  P  presets     V  fenêtre visuelle     O  options     H  aide     Q  quitter
+  P  presets     V  moteur visuel     F  plein écran     O  options     Q  quitter
 `;
 
 export interface ParsedCli {

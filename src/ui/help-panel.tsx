@@ -20,7 +20,10 @@ export function HelpPanel(): React.JSX.Element {
         <Text bold>Tab</Text> Filtrer les presets par build-up, drop, verse ou other
       </Text>
       <Text>
-        <Text bold>V</Text> Ouvrir / fermer la fenêtre de visualisation
+        <Text bold>V</Text> Démarrer / arrêter le moteur de visualisation
+      </Text>
+      <Text>
+        <Text bold>F</Text> Afficher / masquer la sortie plein écran
       </Text>
       <Text>
         <Text bold>N / B</Text> Preset suivant / précédent

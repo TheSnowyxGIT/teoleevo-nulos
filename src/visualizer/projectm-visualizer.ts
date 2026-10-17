@@ -7,6 +7,7 @@ import {isWsl, toLocalPath, toWindowsPath} from '../platform.js';
 import type {
   Preset,
   VisualizerController,
+  VisualizerDisplay,
   VisualizerSettings,
   VisualizerStatus,
 } from '../types.js';
@@ -75,7 +76,7 @@ export function rendererArguments(
   textureDirectories: string[],
   deviceId?: string,
   settings: VisualizerSettings = {
-    frameRate: 30,
+    frameRate: 60,
     speed: 1.07175,
     audioGain: 1,
   },
@@ -163,6 +164,14 @@ export class ProjectMVisualizer implements VisualizerController {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  async listDisplays(): Promise<VisualizerDisplay[]> {
+    return [];
+  }
+
+  async setFullscreen(_enabled: boolean, _display?: VisualizerDisplay): Promise<void> {
+    // The projectM fallback currently owns a regular SDL window only.
   }
 
   async selectAudioDevice(deviceId: string, _deviceName?: string): Promise<void> {

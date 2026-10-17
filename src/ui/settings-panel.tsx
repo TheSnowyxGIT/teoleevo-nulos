@@ -1,7 +1,12 @@
 import React from 'react';
 import {Box, Text} from 'ink';
 import {SMOOTHING_PROFILES} from '../config.js';
-import type {AudioDevice, SmoothingProfile, VisualizerSettings} from '../types.js';
+import type {
+  AudioDevice,
+  SmoothingProfile,
+  VisualizerDisplay,
+  VisualizerSettings,
+} from '../types.js';
 
 interface SettingsPanelProps {
   devices: AudioDevice[];
@@ -10,6 +15,9 @@ interface SettingsPanelProps {
   meterFloor: number;
   showHistory: boolean;
   autoDropPresets: boolean;
+  displays: VisualizerDisplay[];
+  selectedDisplayIndex: number;
+  fullscreenOutput: boolean;
   visualizerSettings: VisualizerSettings;
   selectedRow: number;
 }
@@ -43,6 +51,9 @@ export function SettingsPanel({
   meterFloor,
   showHistory,
   autoDropPresets,
+  displays,
+  selectedDisplayIndex,
+  fullscreenOutput,
   visualizerSettings,
   selectedRow,
 }: SettingsPanelProps): React.JSX.Element {
@@ -92,6 +103,20 @@ export function SettingsPanel({
       />
       <Row
         active={selectedRow === 7}
+        label="Écran de sortie"
+        value={
+          displays[selectedDisplayIndex]
+            ? `${displays[selectedDisplayIndex]?.name} · ${displays[selectedDisplayIndex]?.width}×${displays[selectedDisplayIndex]?.height}${displays[selectedDisplayIndex]?.isPrimary ? ' · principal' : ''}`
+            : 'Aucun écran détecté'
+        }
+      />
+      <Row
+        active={selectedRow === 8}
+        label="Plein écran"
+        value={fullscreenOutput ? 'Activé' : 'Désactivé'}
+      />
+      <Row
+        active={selectedRow === 9}
         label="Preset sur drop"
         value={autoDropPresets ? 'Activé' : 'Désactivé'}
       />

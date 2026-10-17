@@ -7,6 +7,7 @@ import {isWsl, toLocalPath, toWindowsPath} from '../platform.js';
 import type {
   Preset,
   VisualizerController,
+  VisualizerDisplay,
   VisualizerSettings,
   VisualizerStatus,
 } from '../types.js';
@@ -73,6 +74,8 @@ export class NestDropVisualizer implements VisualizerController {
   private deviceName?: string;
   private settings: VisualizerSettings;
   private presetId = Date.now() & 0x7fffffff;
+  private fullscreenEnabled = false;
+  private fullscreenDisplay?: VisualizerDisplay;
 
   constructor(private readonly options: NestDropOptions) {
     this.settings = {...options.settings};
@@ -82,6 +85,59 @@ export class NestDropVisualizer implements VisualizerController {
     this.listeners.add(listener);
     listener(this.status);
     return () => this.listeners.delete(listener);
+  }
+
+  async listDisplays(): Promise<VisualizerDisplay[]> {
+    const powershell = isWsl
+      ? '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe'
+      : 'powershell.exe';
+    const script = [
+      'Add-Type -AssemblyName System.Windows.Forms',
+      '@([System.Windows.Forms.Screen]::AllScreens | ForEach-Object {',
+      "[PSCustomObject]@{ id=$_.DeviceName; name=($_.DeviceName -replace '^\\\\\\.\\\\',''); x=$_.Bounds.X; y=$_.Bounds.Y; width=$_.Bounds.Width; height=$_.Bounds.Height; isPrimary=$_.Primary }",
+      '}) | ConvertTo-Json -Compress',
+    ].join('; ');
+    try {
+      const {stdout} = await execFileAsync(
+        powershell,
+        ['-NoProfile', '-Command', script],
+        {encoding: 'utf8', windowsHide: true},
+      );
+      const text = String(stdout).trim();
+      if (!text) return [];
+      const parsed: unknown = JSON.parse(text);
+      const values = Array.isArray(parsed) ? parsed : [parsed];
+      return values
+        .filter(isVisualizerDisplay)
+        .map(display => ({
+          ...display,
+          name: display.id.replace(/^\\\\\.\\/, ''),
+        }))
+        .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary));
+    } catch {
+      return [];
+    }
+  }
+
+  async setFullscreen(
+    enabled: boolean,
+    display?: VisualizerDisplay,
+  ): Promise<void> {
+    this.fullscreenEnabled = enabled;
+    if (display) this.fullscreenDisplay = display;
+    if (!this.child) return;
+
+    if (!enabled) {
+      await this.writeRegistry('FullScreenL', hiddenWindowPosition);
+    } else {
+      const target = this.fullscreenDisplay ?? (await this.listDisplays())[0];
+      if (!target) {
+        throw new Error('Aucun écran Windows disponible pour le plein écran.');
+      }
+      this.fullscreenDisplay = target;
+      await this.openOutputWindow(target);
+    }
+    this.markRunning();
   }
 
   async selectAudioDevice(deviceId: string, deviceName?: string): Promise<void> {
@@ -165,7 +221,13 @@ export class NestDropVisualizer implements VisualizerController {
       });
       await new Promise(resolve => setTimeout(resolve, 500));
       if (this.child === child) {
-        await this.openOutputWindow();
+        if (this.fullscreenEnabled) {
+          const target = this.fullscreenDisplay ?? (await this.listDisplays())[0];
+          if (target) {
+            this.fullscreenDisplay = target;
+            await this.openOutputWindow(target);
+          }
+        }
         this.markRunning();
       }
     } catch (error) {
@@ -199,14 +261,16 @@ export class NestDropVisualizer implements VisualizerController {
     );
   }
 
-  private async openOutputWindow(): Promise<void> {
+  private async openOutputWindow(display: VisualizerDisplay): Promise<void> {
     // FullScreenL is the final trigger that creates the visible DirectX output.
-    await this.writeRegistry('FullScreenTitle', 'Teoleevo', 'REG_SZ');
-    await this.writeRegistry('FullScreenT', 80);
-    await this.writeRegistry('FullScreenH', 720);
-    await this.writeRegistry('FullScreenW', 1_280);
+    await this.writeRegistry('FullScreenL', hiddenWindowPosition);
+    await new Promise(resolve => setTimeout(resolve, 120));
+    await this.writeRegistry('FullScreenTitle', `Teoleevo - ${display.name}`, 'REG_SZ');
+    await this.writeRegistry('FullScreenT', display.y);
+    await this.writeRegistry('FullScreenH', display.height);
+    await this.writeRegistry('FullScreenW', display.width);
     await this.writeRegistry('FullScreenTopMost', 0);
-    await this.writeRegistry('FullScreenL', 80);
+    await this.writeRegistry('FullScreenL', display.x);
   }
 
   private async writeRegistry(
@@ -223,7 +287,11 @@ export class NestDropVisualizer implements VisualizerController {
       '/t',
       type,
       '/d',
-      String(value),
+      String(
+        type === 'REG_DWORD' && typeof value === 'number' && value < 0
+          ? value >>> 0
+          : value,
+      ),
       '/f',
     ], {windowsHide: true});
   }
@@ -232,7 +300,7 @@ export class NestDropVisualizer implements VisualizerController {
     if (!this.currentPreset) return;
     this.update({
       state: 'running',
-      message: `MilkDrop 2 · ${this.deviceName ?? 'sortie Windows par défaut'} · vitesse ${this.settings.speed.toLocaleString('fr-FR')}× · audio ${this.settings.audioGain.toLocaleString('fr-FR')}× · ${this.settings.frameRate} FPS`,
+      message: `MilkDrop 2 · ${this.fullscreenEnabled ? `plein écran ${this.fullscreenDisplay?.name ?? ''}` : 'sortie masquée'} · ${this.deviceName ?? 'sortie Windows par défaut'} · ${this.settings.frameRate} FPS`,
       preset: this.currentPreset,
     });
   }
@@ -245,4 +313,18 @@ export class NestDropVisualizer implements VisualizerController {
     this.status = status;
     for (const listener of this.listeners) listener(status);
   }
+}
+
+function isVisualizerDisplay(value: unknown): value is VisualizerDisplay {
+  if (typeof value !== 'object' || value === null) return false;
+  const display = value as Partial<VisualizerDisplay>;
+  return (
+    typeof display.id === 'string' &&
+    typeof display.name === 'string' &&
+    typeof display.x === 'number' &&
+    typeof display.y === 'number' &&
+    typeof display.width === 'number' &&
+    typeof display.height === 'number' &&
+    typeof display.isPrimary === 'boolean'
+  );
 }

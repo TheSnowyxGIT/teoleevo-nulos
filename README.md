@@ -2,8 +2,8 @@
 
 Visualiseur et contrôleur de l’audio système Windows en temps réel. L’interface
 [Ink](https://github.com/vadimdemedes/ink) affiche l’énergie des basses,
-médiums et aigus, permet de chercher des presets MilkDrop `.milk`, puis ouvre
-leur rendu musical dans une fenêtre GPU séparée.
+médiums et aigus, permet de chercher des presets MilkDrop `.milk`, puis affiche
+leur rendu musical en plein écran sur le moniteur choisi.
 
 Cette version utilise les beats et downbeats comme grille musicale, détecte les
 transitions principales en direct et peut passer automatiquement au preset
@@ -22,9 +22,9 @@ suivant lorsqu’un drop est confirmé.
 - niveau en dBFS, vumètres lissés et historique en direct ;
 - options interactives pour la sortie, la réactivité et l’échelle ;
 - catalogue récursif et recherche instantanée dans les presets `.milk` ;
-- lancement, arrêt et transition de preset dans une fenêtre persistante ;
+- preview moteur persistante et sortie plein écran sélectionnable par moniteur ;
 - vitesse globale, volume de réaction musicale et framerate réglables à chaud ;
-- rendu MilkDrop musical via libprojectM et un hôte Windows contrôlé par IPC ;
+- rendu MilkDrop 2 natif via NestDrop, avec libprojectM comme solution de repli ;
 - mode démo sans audio, utilisable sous Linux, macOS ou en CI ;
 - prise en charge de Windows Terminal et de WSL avec interop Windows.
 
@@ -80,9 +80,10 @@ Downloads/NestDropClassicV2x2/Plugins/Milkdrop2/Presets
 ```
 
 Appuyez sur `P`, tapez une partie du nom, sélectionnez avec `↑`/`↓`, puis
-`Entrée`. L’hôte ouvre une fenêtre Windows, capture par WASAPI la sortie
-exactement sélectionnée dans Ink et transmet le PCM stéréo à libprojectM. Les
-presets suivants sont chargés dans cette même fenêtre avec une transition.
+`Entrée`. La fenêtre de preview `Deck 1` reste ouverte pendant toute la session.
+Choisissez ensuite le moniteur dans `O` et utilisez `F` pour afficher ou masquer
+la sortie plein écran indépendante. Les presets suivants sont chargés dans le
+même moteur.
 
 Le panneau `BEATNET` indique uniquement l’état du moteur rythmique, ses
 activations, le BPM et la position dans la mesure. Le panneau `ÉVÉNEMENT
@@ -99,13 +100,13 @@ un changement de gain probable et pénalisée.
 
 Le changement automatique est désactivé par défaut. Utilisez `A`, l’option
 `Preset sur drop` ou `--auto-drop` pour l’activer. Il ne s’arme que lorsque la
-fenêtre visuelle est déjà ouverte et qu’un preset existe.
+moteur visuel est déjà démarré et qu’un preset existe.
 
 Quand NestDrop est installé à côté du dossier de presets, son renderer MilkDrop 2
 est utilisé automatiquement. La vitesse démarre à `1,07175×`, valeur relevée
 dans `Profile Teo.xml` (`1×` est la vitesse normale), et la réaction audio à
 `1×`. Les réglages sont envoyés au renderer natif sans modifier les fichiers
-`.milk`. Changer de preset met à jour la fenêtre existante. Si le renderer
+`.milk`. Changer de preset met à jour le moteur existant. Si le renderer
 NestDrop est absent, libprojectM reste utilisé comme solution de repli.
 
 Le réglage `FPS / fluidité` plafonne le nombre d’images calculées par seconde et
@@ -134,7 +135,8 @@ pnpm start
 | `O` | Options interactives |
 | `P` | Chercher et sélectionner un preset `.milk` |
 | `Tab` | Changer le filtre de tag dans le sélecteur de presets |
-| `V` | Ouvrir ou fermer la fenêtre de visualisation |
+| `V` | Démarrer ou arrêter le moteur et sa fenêtre de preview |
+| `F` | Afficher ou masquer la sortie plein écran |
 | `N` / `B` | Preset suivant / précédent |
 | `D` | Sortie audio suivante |
 | `S` | Réactivité suivante |
@@ -144,6 +146,11 @@ pnpm start
 
 Dans les options, utilisez les flèches haut/bas pour choisir une ligne et les
 flèches gauche/droite pour modifier sa valeur.
+
+Le renderer NestDrop garde sa fenêtre de preview `Deck 1` visible. Dans `O`,
+choisissez `Écran de sortie`, puis activez `Plein écran`, ou utilisez directement
+`F`. Cette commande concerne uniquement la seconde fenêtre de sortie : elle ne
+ferme et ne masque jamais la preview.
 
 Dans le sélecteur de presets (`P`), `Tab` fait défiler les filtres `Tous`,
 `Build-up`, `Drop`, `Verse` et `Other`. La recherche textuelle s’applique en
@@ -184,7 +191,9 @@ WASAPI → helper C# → FFT/features ─→ détecteur par mesure ─→ interf
 
 périphérique sélectionné → NestDrop_SpoutSender → MilkDrop 2 / DirectX
                                       ↑
-                  registre Deck0 : preset et réglages → fenêtre unique
+                  registre Deck1 : preset et réglages
+                                      ├→ preview Deck 1 toujours visible
+                                      └→ plein écran sur le moniteur choisi
 
 Si NestDrop est absent : périphérique → Visualizer → NAudio → libprojectM.
 ```
@@ -197,13 +206,11 @@ causal et son filtre particulaire, puis renvoie les pulsations à Node. Ce chemi
 n’utilise ni microphone ni PyAudio : il suit exactement la sortie choisie dans
 l’interface.
 
-L’hôte de visualisation reçoit l’identifiant exact de cette sortie, effectue sa
-propre capture PCM WASAPI et alimente libprojectM. Le contrôleur TypeScript
-expose `showPreset(preset)` : cette méthode démarre la fenêtre une seule fois,
-puis lui envoie les presets suivants par IPC. Les changements de vitesse passent
-par le même canal et rechargent le preset actif dans cette fenêtre. Le
-déclenchement unique du drop appelle `showPreset` avec le preset suivant, sans
-recréer la fenêtre ni changer de source audio.
+Le renderer NestDrop reçoit le nom exact de la sortie WASAPI et lit les réglages
+du deck dans le registre Windows. Le contrôleur TypeScript expose
+`showPreset(preset)` sans recréer le processus, conserve sa fenêtre de preview et
+pilote séparément la sortie plein écran. Le déclenchement unique du drop appelle
+`showPreset` avec le preset suivant sans changer de source audio ni d’écran.
 
 La distribution Windows [projectMSDL](https://github.com/projectM-visualizer/frontend-sdl-cpp)
 fournit les DLL du moteur [libprojectM](https://github.com/projectM-visualizer/projectm),

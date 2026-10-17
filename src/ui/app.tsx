@@ -25,6 +25,7 @@ import type {
   Preset,
   SmoothingProfile,
   VisualizerController,
+  VisualizerDisplay,
   VisualizerSettings,
   VisualizerStatus,
 } from '../types.js';
@@ -91,6 +92,9 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
   const [visualizerSettings, setVisualizerSettings] = useState<VisualizerSettings>(
     options.visualizerSettings,
   );
+  const [displays, setDisplays] = useState<VisualizerDisplay[]>([]);
+  const [selectedDisplayIndex, setSelectedDisplayIndex] = useState(0);
+  const [fullscreenOutput, setFullscreenOutput] = useState(false);
   const [panel, setPanel] = useState<'none' | 'settings' | 'help' | 'presets'>('none');
   const [selectedRow, setSelectedRow] = useState(0);
   const [presetQuery, setPresetQuery] = useState('');
@@ -166,6 +170,20 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
   }, [source]);
 
   useEffect(() => visualizer.subscribe(setVisualizerStatus), [visualizer]);
+
+  useEffect(() => {
+    let active = true;
+    void visualizer.listDisplays().then(nextDisplays => {
+      if (!active) return;
+      setDisplays(nextDisplays);
+      setSelectedDisplayIndex(
+        Math.max(0, nextDisplays.findIndex(display => display.isPrimary)),
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [visualizer]);
 
   useEffect(() => {
     if (info?.deviceId) void visualizer.selectAudioDevice(info.deviceId, info.deviceName);
@@ -253,6 +271,25 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     setSmoothing(current => nextInList(SMOOTHING_ORDER, current, direction));
   };
 
+  const cycleDisplay = (direction: 1 | -1): void => {
+    if (displays.length < 2) return;
+    setSelectedDisplayIndex(current => {
+      const next = (current + direction + displays.length) % displays.length;
+      if (fullscreenOutput) void visualizer.setFullscreen(true, displays[next]);
+      return next;
+    });
+  };
+
+  const toggleFullscreenOutput = (): void => {
+    const display = displays[selectedDisplayIndex];
+    if (!display) return;
+    setFullscreenOutput(current => {
+      const next = !current;
+      void visualizer.setFullscreen(next, display);
+      return next;
+    });
+  };
+
   const changeVisualizerSetting = <Key extends keyof VisualizerSettings>(
     key: Key,
     values: readonly VisualizerSettings[Key][],
@@ -289,6 +326,12 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
         changeVisualizerSetting('audioGain', VISUAL_AUDIO_GAINS, direction);
         break;
       case 7:
+        cycleDisplay(direction);
+        break;
+      case 8:
+        toggleFullscreenOutput();
+        break;
+      case 9:
         setAutoDropPresets(current => !current);
         break;
     }
@@ -336,7 +379,7 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     if (panel === 'settings') {
       if (input.toLowerCase() === 'o') setPanel('none');
       else if (key.upArrow) setSelectedRow(row => Math.max(0, row - 1));
-      else if (key.downArrow) setSelectedRow(row => Math.min(7, row + 1));
+      else if (key.downArrow) setSelectedRow(row => Math.min(9, row + 1));
       else if (key.leftArrow) changeSetting(-1);
       else if (key.rightArrow || key.return) changeSetting(1);
       return;
@@ -377,6 +420,7 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     else if (input.toLowerCase() === 'b') cyclePreset(-1);
     else if (input.toLowerCase() === 'd') cycleDevice(1);
     else if (input.toLowerCase() === 's') cycleSmoothing(1);
+    else if (input.toLowerCase() === 'f') toggleFullscreenOutput();
     else if (input.toLowerCase() === 'a') setAutoDropPresets(current => !current);
   });
 
@@ -463,7 +507,11 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
           </Text>
         </Box>
         <Text color={visualizerColor}>
-          {visualizerStatus.state === 'running' ? ' VISUEL ACTIF' : ` ${presets.length} .MILK`}
+          {visualizerStatus.state === 'running'
+            ? fullscreenOutput
+              ? ' PLEIN ÉCRAN'
+              : ' MOTEUR ACTIF'
+            : ` ${presets.length} .MILK`}
         </Text>
       </Box>
 
@@ -481,6 +529,9 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
           meterFloor={meterFloor}
           showHistory={showHistory}
           autoDropPresets={autoDropPresets}
+          displays={displays}
+          selectedDisplayIndex={selectedDisplayIndex}
+          fullscreenOutput={fullscreenOutput}
           visualizerSettings={visualizerSettings}
           selectedRow={selectedRow}
         />
@@ -496,7 +547,7 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
         />
       ) : (
         <Box justifyContent="space-between">
-          <Text dimColor>P presets · V visuel · A auto-drop · O options · Q quitter</Text>
+          <Text dimColor>P presets · V moteur · F plein écran · A auto-drop · O options · Q quitter</Text>
           <Text dimColor>{SMOOTHING_PROFILES[smoothing].label} · {meterFloor} dB</Text>
         </Box>
       )}

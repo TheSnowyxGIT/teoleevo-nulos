@@ -11,7 +11,7 @@ test('parseCli uses production defaults', () => {
   assert.equal(parsed.options.beatNet, true);
   assert.equal(parsed.options.autoDropPresets, false);
   assert.deepEqual(parsed.options.visualizerSettings, {
-    frameRate: 30,
+    frameRate: 60,
     speed: 1.07175,
     audioGain: 1,
   });
