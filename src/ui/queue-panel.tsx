@@ -14,6 +14,7 @@ interface QueuePanelProps {
   autoSwitchPaused: boolean;
   autoSwitchPauseReason: 'silence' | 'manual';
   shuffleEnabled: boolean;
+  upcomingCount?: number;
 }
 
 export function QueuePanel({
@@ -27,11 +28,12 @@ export function QueuePanel({
   autoSwitchPaused,
   autoSwitchPauseReason,
   shuffleEnabled,
+  upcomingCount = 3,
 }: QueuePanelProps): React.JSX.Element {
-  const defaultQueue = buildPresetQueue(presets, currentPreset, 3);
+  const defaultQueue = buildPresetQueue(presets, currentPreset, upcomingCount);
   const queue = {
     ...defaultQueue,
-    upcoming: upcomingOverride?.slice(0, 3) ?? defaultQueue.upcoming,
+    upcoming: upcomingOverride?.slice(0, upcomingCount) ?? defaultQueue.upcoming,
   };
 
   return (

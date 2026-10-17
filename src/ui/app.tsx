@@ -10,6 +10,7 @@ import {
   SMOOTHING_ORDER,
   SMOOTHING_PROFILES,
   smoothLevel,
+  TERMINAL_FRAME_RATES,
   VISUAL_FRAME_RATES,
   VISUAL_AUDIO_GAINS,
 } from '../config.js';
@@ -82,7 +83,7 @@ export function App({
   saveSettings,
 }: AppProps): React.JSX.Element {
   const {exit} = useApp();
-  const {columns} = useWindowSize();
+  const {columns, rows} = useWindowSize();
   const [status, setStatus] = useState<CaptureStatus>({
     state: 'starting',
     message: 'Initialisation…',
@@ -100,6 +101,7 @@ export function App({
   const [paused, setPaused] = useState(false);
   const [smoothing, setSmoothing] = useState<SmoothingProfile>(initialSettings.smoothing);
   const [meterFloor, setMeterFloor] = useState(options.meterFloor);
+  const [uiFps, setUiFps] = useState(options.uiFps);
   const [showHistory, setShowHistory] = useState(initialSettings.showHistory);
   const [visualizerSettings, setVisualizerSettings] = useState<VisualizerSettings>(
     options.visualizerSettings,
@@ -152,6 +154,11 @@ export function App({
   const pausedRef = useRef(paused);
   const smoothingRef = useRef(smoothing);
   const meterFloorRef = useRef(meterFloor);
+  const uiFpsRef = useRef(uiFps);
+  const panelRef = useRef(panel);
+  const showHistoryRef = useRef(showHistory);
+  const hasSignalRef = useRef(false);
+  const lastUiFrameAtRef = useRef(0);
   const levelsRef = useRef<BandValues>(EMPTY_BANDS);
   const shuffleUpcomingRef = useRef<string[]>([]);
   const shuffleHistoryRef = useRef<string[]>([]);
@@ -161,6 +168,9 @@ export function App({
   pausedRef.current = paused;
   smoothingRef.current = smoothing;
   meterFloorRef.current = meterFloor;
+  uiFpsRef.current = uiFps;
+  panelRef.current = panel;
+  showHistoryRef.current = showHistory;
 
   const playlists = useMemo(
     () => buildPlaylists(presets, customPlaylists),
@@ -206,8 +216,10 @@ export function App({
         onStatus: setStatus,
         onFrame: frame => {
           if (pausedRef.current) return;
-          setHasSignal(frame.hasSignal);
-          setDb(frame.db);
+          if (frame.hasSignal !== hasSignalRef.current) {
+            hasSignalRef.current = frame.hasSignal;
+            setHasSignal(frame.hasSignal);
+          }
           const next = {...levelsRef.current};
           for (const band of BANDS) {
             next[band] = smoothLevel(
@@ -217,12 +229,19 @@ export function App({
             );
           }
           levelsRef.current = next;
+          if (panelRef.current !== 'none') return;
+          const minimumInterval = 1000 / uiFpsRef.current;
+          if (frame.timestamp - lastUiFrameAtRef.current < minimumInterval) return;
+          lastUiFrameAtRef.current = frame.timestamp;
+          setDb(frame.db);
           setLevels(next);
-          setHistory(previousHistory => ({
-            bass: [...previousHistory.bass, next.bass].slice(-HISTORY_LENGTH),
-            mids: [...previousHistory.mids, next.mids].slice(-HISTORY_LENGTH),
-            treble: [...previousHistory.treble, next.treble].slice(-HISTORY_LENGTH),
-          }));
+          if (showHistoryRef.current) {
+            setHistory(previousHistory => ({
+              bass: [...previousHistory.bass, next.bass].slice(-HISTORY_LENGTH),
+              mids: [...previousHistory.mids, next.mids].slice(-HISTORY_LENGTH),
+              treble: [...previousHistory.treble, next.treble].slice(-HISTORY_LENGTH),
+            }));
+          }
         },
       })
       .catch(error =>
@@ -309,6 +328,7 @@ export function App({
         ? {deviceId: info?.deviceId ?? options.deviceId}
         : {}),
       smoothing,
+      uiFps,
       meterFloor,
       showHistory,
       visualizerSettings,
@@ -344,6 +364,7 @@ export function App({
     selectedDisplayIndex,
     showHistory,
     smoothing,
+    uiFps,
     shuffleEnabled,
     visualizerSettings,
   ]);
@@ -573,29 +594,32 @@ export function App({
         setShowHistory(current => !current);
         break;
       case 4:
-        changeVisualizerSetting('frameRate', VISUAL_FRAME_RATES, direction);
+        setUiFps(current => nextInList(TERMINAL_FRAME_RATES, current, direction));
         break;
       case 5:
-        changeVisualizerSetting('speed', ANIMATION_SPEEDS, direction);
+        changeVisualizerSetting('frameRate', VISUAL_FRAME_RATES, direction);
         break;
       case 6:
-        changeVisualizerSetting('audioGain', VISUAL_AUDIO_GAINS, direction);
+        changeVisualizerSetting('speed', ANIMATION_SPEEDS, direction);
         break;
       case 7:
-        cycleDisplay(direction);
+        changeVisualizerSetting('audioGain', VISUAL_AUDIO_GAINS, direction);
         break;
       case 8:
-        toggleFullscreenOutput();
+        cycleDisplay(direction);
         break;
       case 9:
-        setAutoSwitchEnabled(current => !current);
+        toggleFullscreenOutput();
         break;
       case 10:
+        setAutoSwitchEnabled(current => !current);
+        break;
+      case 11:
         setAutoSwitchSeconds(current =>
           nextInList(AUTO_SWITCH_INTERVALS, current, direction),
         );
         break;
-      case 11:
+      case 12:
         setShuffleEnabled(current => !current);
         break;
     }
@@ -879,7 +903,7 @@ export function App({
     if (panel === 'settings') {
       if (input.toLowerCase() === 'o') setPanel('none');
       else if (key.upArrow) setSelectedRow(row => Math.max(0, row - 1));
-      else if (key.downArrow) setSelectedRow(row => Math.min(11, row + 1));
+      else if (key.downArrow) setSelectedRow(row => Math.min(12, row + 1));
       else if (key.leftArrow) changeSetting(-1);
       else if (key.rightArrow || key.return) changeSetting(1);
       return;
@@ -942,34 +966,129 @@ export function App({
       : visualizerStatus.state === 'error' || visualizerStatus.state === 'unavailable'
         ? 'red'
         : 'gray';
+  const compact = rows < 32;
+  const header = (
+    <Box justifyContent="space-between">
+      <Text bold color="cyan">
+        TEOLEEVO <Text dimColor>// LIVE AUDIO SPECTRUM</Text>
+      </Text>
+      <Text color={statusColor}>
+        {statusDot} {statusLabel}
+      </Text>
+    </Box>
+  );
+  const errors = (
+    <>
+      {status.state === 'error' ? (
+        <Box borderStyle="single" borderColor="red" paddingX={1} marginBottom={1}>
+          <Text color="red">{status.message}</Text>
+        </Box>
+      ) : null}
+      {settingsError ? (
+        <Box borderStyle="single" borderColor="red" paddingX={1} marginBottom={1}>
+          <Text color="red">{settingsError}</Text>
+        </Box>
+      ) : null}
+    </>
+  );
+  const panelContent =
+    panel === 'settings' ? (
+      <SettingsPanel
+        devices={devices}
+        selectedDeviceId={info?.deviceId}
+        smoothing={smoothing}
+        meterFloor={meterFloor}
+        uiFps={uiFps}
+        showHistory={showHistory}
+        displays={displays}
+        selectedDisplayIndex={selectedDisplayIndex}
+        fullscreenOutput={fullscreenOutput}
+        visualizerSettings={visualizerSettings}
+        autoSwitchEnabled={autoSwitchEnabled}
+        autoSwitchSeconds={autoSwitchSeconds}
+        shuffleEnabled={shuffleEnabled}
+        selectedRow={selectedRow}
+      />
+    ) : panel === 'playlists' ? (
+      <PlaylistPanel
+        playlists={playlists}
+        activePlaylistId={activePlaylist?.id ?? ''}
+        selectedIndex={playlistIndex}
+        dialog={playlistDialog}
+      />
+    ) : panel === 'playlist-detail' && detailPlaylist ? (
+      <PlaylistDetailPanel
+        playlist={detailPlaylist}
+        presets={
+          playlistDetailMode === 'contents' ? detailPresets : filteredCatalogPresets
+        }
+        mode={playlistDetailMode}
+        query={playlistCatalogQuery}
+        tagFilter={playlistCatalogTagFilter}
+        selectedIndex={
+          playlistDetailMode === 'contents'
+            ? playlistDetailIndex
+            : playlistCatalogIndex
+        }
+        currentPresetId={currentPreset?.id}
+        active={detailPlaylist.id === activePlaylist?.id}
+        compact={compact}
+      />
+    ) : panel === 'help' ? (
+      <HelpPanel />
+    ) : panel === 'presets' ? (
+      <PresetPanel
+        presets={filteredPresets}
+        query={presetQuery}
+        selectedIndex={presetIndex}
+        currentPreset={currentPreset}
+        tagFilter={presetTagFilter}
+        compact={compact}
+      />
+    ) : null;
+
+  if (panel !== 'none') {
+    return (
+      <Box flexDirection="column" paddingX={1} width={contentWidth}>
+        {header}
+        {errors}
+        <Box marginTop={1}>{panelContent}</Box>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column" paddingX={1} width={contentWidth}>
-      <Box justifyContent="space-between">
-        <Text bold color="cyan">
-          TEOLEEVO <Text dimColor>// LIVE AUDIO SPECTRUM</Text>
-        </Text>
-        <Text color={statusColor}>
-          {statusDot} {statusLabel}
-        </Text>
-      </Box>
+      {header}
 
-      <Box borderStyle="round" borderColor={statusColor} paddingX={1} marginTop={1}>
-        <Box flexDirection="column" flexGrow={1}>
+      {compact ? (
+        <Box justifyContent="space-between" marginTop={1}>
           <Text wrap="truncate-end">
             <Text dimColor>Source </Text>
             {info?.deviceName ?? status.message}
           </Text>
-          <Text dimColor>
-            {info
-              ? `${(info.sampleRate / 1000).toFixed(1)} kHz · ${info.channels === 2 ? 'stéréo' : `${info.channels} canal`} · FFT ${info.fftSize}`
-              : 'En attente du moteur audio…'}
+          <Text color={hasSignal && !paused ? 'green' : 'gray'}>
+            {hasSignal && !paused ? '● SIGNAL' : '○ SILENCE'}
           </Text>
         </Box>
-        <Text color={hasSignal && !paused ? 'green' : 'gray'}>
-          {hasSignal && !paused ? ' SIGNAL' : ' SILENCE'}
-        </Text>
-      </Box>
+      ) : (
+        <Box borderStyle="round" borderColor={statusColor} paddingX={1} marginTop={1}>
+          <Box flexDirection="column" flexGrow={1}>
+            <Text wrap="truncate-end">
+              <Text dimColor>Source </Text>
+              {info?.deviceName ?? status.message}
+            </Text>
+            <Text dimColor>
+              {info
+                ? `${(info.sampleRate / 1000).toFixed(1)} kHz · ${info.channels === 2 ? 'stéréo' : `${info.channels} canal`} · FFT ${info.fftSize}`
+                : 'En attente du moteur audio…'}
+            </Text>
+          </Box>
+          <Text color={hasSignal && !paused ? 'green' : 'gray'}>
+            {hasSignal && !paused ? ' SIGNAL' : ' SILENCE'}
+          </Text>
+        </Box>
+      )}
 
       <Box flexDirection="column" marginTop={1}>
         {BANDS.map(band => (
@@ -980,110 +1099,72 @@ export function App({
             db={db[band]}
             history={history[band]}
             width={contentWidth}
-            showHistory={showHistory}
+            showHistory={showHistory && !compact}
+            compact={compact}
           />
         ))}
       </Box>
 
-      <Box borderStyle="round" borderColor={visualizerColor} paddingX={1} marginBottom={1}>
-        <Box flexDirection="column" flexGrow={1}>
+      {compact ? (
+        <Box justifyContent="space-between" marginTop={1}>
           <Text wrap="truncate-end">
             <Text dimColor>Preset </Text>
             {currentPreset?.name ?? 'Aucun preset sélectionné'}
           </Text>
-          <Text wrap="truncate-end">
-            <Text dimColor>Playlist </Text>
-            {activePlaylist?.name ?? 'Aucune'} · {activePresets.length} preset(s)
+          <Text color={visualizerColor}>
+            {visualizerStatus.state === 'running'
+              ? fullscreenOutput
+                ? 'PLEIN ÉCRAN'
+                : 'MOTEUR ACTIF'
+              : `${activePresets.length} .MILK`}
           </Text>
-          <Text dimColor wrap="truncate-end">
-            {visualizerStatus.message}
+        </Box>
+      ) : (
+        <Box borderStyle="round" borderColor={visualizerColor} paddingX={1} marginBottom={1}>
+          <Box flexDirection="column" flexGrow={1}>
+            <Text wrap="truncate-end">
+              <Text dimColor>Preset </Text>
+              {currentPreset?.name ?? 'Aucun preset sélectionné'}
+            </Text>
+            <Text wrap="truncate-end">
+              <Text dimColor>Playlist </Text>
+              {activePlaylist?.name ?? 'Aucune'} · {activePresets.length} preset(s)
+            </Text>
+            <Text dimColor wrap="truncate-end">
+              {visualizerStatus.message}
+            </Text>
+          </Box>
+          <Text color={visualizerColor}>
+            {visualizerStatus.state === 'running'
+              ? fullscreenOutput
+                ? ' PLEIN ÉCRAN'
+                : ' MOTEUR ACTIF'
+              : ` ${activePresets.length} .MILK`}
           </Text>
         </Box>
-        <Text color={visualizerColor}>
-          {visualizerStatus.state === 'running'
-            ? fullscreenOutput
-              ? ' PLEIN ÉCRAN'
-              : ' MOTEUR ACTIF'
-            : ` ${activePresets.length} .MILK`}
-        </Text>
-      </Box>
+      )}
 
-      {status.state === 'error' ? (
-        <Box borderStyle="single" borderColor="red" paddingX={1} marginBottom={1}>
-          <Text color="red">{status.message}</Text>
-        </Box>
-      ) : null}
+      {errors}
 
-      {settingsError ? (
-        <Box borderStyle="single" borderColor="red" paddingX={1} marginBottom={1}>
-          <Text color="red">{settingsError}</Text>
-        </Box>
-      ) : null}
-
-      {panel === 'settings' ? (
-        <SettingsPanel
-          devices={devices}
-          selectedDeviceId={info?.deviceId}
-          smoothing={smoothing}
-          meterFloor={meterFloor}
-          showHistory={showHistory}
-          displays={displays}
-          selectedDisplayIndex={selectedDisplayIndex}
-          fullscreenOutput={fullscreenOutput}
-          visualizerSettings={visualizerSettings}
+      <Box flexDirection="column">
+        <QueuePanel
+          playlist={activePlaylist}
+          presets={activePresets}
+          currentPreset={currentPreset}
+          upcomingOverride={shuffleEnabled ? shuffleUpcomingPresets : undefined}
           autoSwitchEnabled={autoSwitchEnabled}
           autoSwitchSeconds={autoSwitchSeconds}
+          autoSwitchRemaining={autoSwitchRemaining}
+          autoSwitchPaused={!hasSignal || paused}
+          autoSwitchPauseReason={paused ? 'manual' : 'silence'}
           shuffleEnabled={shuffleEnabled}
-          selectedRow={selectedRow}
+          upcomingCount={compact ? 2 : 3}
         />
-      ) : panel === 'playlists' ? (
-        <PlaylistPanel
-          playlists={playlists}
-          activePlaylistId={activePlaylist?.id ?? ''}
-          selectedIndex={playlistIndex}
-          dialog={playlistDialog}
-        />
-      ) : panel === 'playlist-detail' && detailPlaylist ? (
-        <PlaylistDetailPanel
-          playlist={detailPlaylist}
-          presets={
-            playlistDetailMode === 'contents' ? detailPresets : filteredCatalogPresets
-          }
-          mode={playlistDetailMode}
-          query={playlistCatalogQuery}
-          tagFilter={playlistCatalogTagFilter}
-          selectedIndex={
-            playlistDetailMode === 'contents'
-              ? playlistDetailIndex
-              : playlistCatalogIndex
-          }
-          currentPresetId={currentPreset?.id}
-          active={detailPlaylist.id === activePlaylist?.id}
-        />
-      ) : panel === 'help' ? (
-        <HelpPanel />
-      ) : panel === 'presets' ? (
-        <PresetPanel
-          presets={filteredPresets}
-          query={presetQuery}
-          selectedIndex={presetIndex}
-          currentPreset={currentPreset}
-          tagFilter={presetTagFilter}
-        />
-      ) : (
-        <Box flexDirection="column">
-          <QueuePanel
-            playlist={activePlaylist}
-            presets={activePresets}
-            currentPreset={currentPreset}
-            upcomingOverride={shuffleEnabled ? shuffleUpcomingPresets : undefined}
-            autoSwitchEnabled={autoSwitchEnabled}
-            autoSwitchSeconds={autoSwitchSeconds}
-            autoSwitchRemaining={autoSwitchRemaining}
-            autoSwitchPaused={!hasSignal || paused}
-            autoSwitchPauseReason={paused ? 'manual' : 'silence'}
-            shuffleEnabled={shuffleEnabled}
-          />
+        {compact ? (
+          <Text dimColor wrap="truncate-end">
+            L playlists · P presets · N/B changer · V moteur · F plein écran · O options · Q quitter
+          </Text>
+        ) : (
           <Box flexDirection="column" marginTop={1}>
             <Text dimColor wrap="truncate-end">
               L playlists · P presets · N/B changer · V moteur · F plein écran
@@ -1093,8 +1174,8 @@ export function App({
               <Text dimColor>{SMOOTHING_PROFILES[smoothing].label} · {meterFloor} dB</Text>
             </Box>
           </Box>
-        </Box>
-      )}
+        )}
+      </Box>
     </Box>
   );
 }

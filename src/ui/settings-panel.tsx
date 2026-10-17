@@ -13,6 +13,7 @@ interface SettingsPanelProps {
   selectedDeviceId?: string;
   smoothing: SmoothingProfile;
   meterFloor: number;
+  uiFps: number;
   showHistory: boolean;
   displays: VisualizerDisplay[];
   selectedDisplayIndex: number;
@@ -51,6 +52,7 @@ export function SettingsPanel({
   selectedDeviceId,
   smoothing,
   meterFloor,
+  uiFps,
   showHistory,
   displays,
   selectedDisplayIndex,
@@ -92,21 +94,26 @@ export function SettingsPanel({
       />
       <Row
         active={selectedRow === 4}
-        label="FPS / fluidité"
-        value={`${visualizerSettings.frameRate} FPS`}
+        label="FPS du terminal"
+        value={`${uiFps} FPS`}
       />
       <Row
         active={selectedRow === 5}
+        label="FPS MilkDrop"
+        value={`${visualizerSettings.frameRate} FPS`}
+      />
+      <Row
+        active={selectedRow === 6}
         label="Vitesse globale"
         value={`${visualizerSettings.speed.toLocaleString('fr-FR')}×`}
       />
       <Row
-        active={selectedRow === 6}
+        active={selectedRow === 7}
         label="Volume visuel"
         value={`${visualizerSettings.audioGain.toLocaleString('fr-FR')}×`}
       />
       <Row
-        active={selectedRow === 7}
+        active={selectedRow === 8}
         label="Écran de sortie"
         value={
           displays[selectedDisplayIndex]
@@ -115,24 +122,24 @@ export function SettingsPanel({
         }
       />
       <Row
-        active={selectedRow === 8}
+        active={selectedRow === 9}
         label="Plein écran"
         value={fullscreenOutput ? 'Activé' : 'Désactivé'}
       />
       <Box height={1} />
       <Text bold color="blue">LECTURE AUTOMATIQUE</Text>
       <Row
-        active={selectedRow === 9}
+        active={selectedRow === 10}
         label="Auto-switch"
         value={autoSwitchEnabled ? 'Activé' : 'Désactivé'}
       />
       <Row
-        active={selectedRow === 10}
+        active={selectedRow === 11}
         label="Intervalle"
         value={`${autoSwitchSeconds} seconde${autoSwitchSeconds > 1 ? 's' : ''}`}
       />
       <Row
-        active={selectedRow === 11}
+        active={selectedRow === 12}
         label="Ordre"
         value={shuffleEnabled ? 'Aléatoire · sans répétition' : 'Séquentiel'}
       />

@@ -59,6 +59,7 @@ async function main(): Promise<void> {
         initialSettings={initialSettings}
         saveSettings={settings => settingsStore.save(settings)}
       />,
+      {incrementalRendering: true},
     );
     await instance.waitUntilExit();
   } catch (error) {

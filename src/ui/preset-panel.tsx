@@ -14,6 +14,7 @@ interface PresetPanelProps {
   selectedIndex: number;
   currentPreset?: Preset;
   tagFilter: PresetTagFilter;
+  compact?: boolean;
 }
 
 const VISIBLE_ROWS = 9;
@@ -28,15 +29,17 @@ export function PresetPanel({
   selectedIndex,
   currentPreset,
   tagFilter,
+  compact = false,
 }: PresetPanelProps): React.JSX.Element {
+  const visibleRows = compact ? 8 : VISIBLE_ROWS;
   const firstRow = Math.max(
     0,
     Math.min(
       selectedIndex - Math.floor(VISIBLE_ROWS / 2),
-      Math.max(0, presets.length - VISIBLE_ROWS),
+      Math.max(0, presets.length - visibleRows),
     ),
   );
-  const rows = presets.slice(firstRow, firstRow + VISIBLE_ROWS);
+  const rows = presets.slice(firstRow, firstRow + visibleRows);
 
   return (
     <Box borderStyle="round" borderColor="magenta" paddingX={2} flexDirection="column">
@@ -58,8 +61,12 @@ export function PresetPanel({
           </Text>
         ))}
       </Box>
-      <Text dimColor>Tab changer le tag · ↑/↓ choisir · Entrée ouvrir · Retour effacer · Échap fermer</Text>
-      <Box height={1} />
+      <Text dimColor>
+        {compact
+          ? 'Tab tag · ↑/↓ choisir · Entrée ouvrir · Échap fermer'
+          : 'Tab changer le tag · ↑/↓ choisir · Entrée ouvrir · Retour effacer · Échap fermer'}
+      </Text>
+      {!compact ? <Box height={1} /> : null}
       {presets.length === 0 ? (
         <Text color="yellow">
           Aucun preset. Configurez --preset-dir &lt;dossier&gt;.
@@ -71,7 +78,7 @@ export function PresetPanel({
           const active = preset.id === currentPreset?.id;
           const folder = path.dirname(preset.relativePath);
           return (
-            <Box key={preset.id}>
+            <Box key={preset.id} height={1} overflowX="hidden">
               <Box width={3}>
                 <Text color={selected ? 'magenta' : undefined}>{selected ? '›' : ' '}</Text>
               </Box>
@@ -79,12 +86,12 @@ export function PresetPanel({
                 <Text color="green">{active ? '●' : ' '}</Text>
               </Box>
               <Text bold={selected} color={selected ? 'cyan' : undefined}>
-                {truncate(preset.name, 50)}
+                {truncate(preset.name, compact ? 38 : 50)}
               </Text>
               <Text color={preset.tags.includes('drop') ? 'red' : preset.tags.includes('build-up') ? 'yellow' : preset.tags.includes('verse') ? 'blue' : 'gray'}>
                 {' '}[{preset.tags.map(tag => PRESET_TAG_LABELS[tag]).join(', ')}]
               </Text>
-              {folder !== '.' ? <Text dimColor> · {truncate(folder, 28)}</Text> : null}
+              {!compact && folder !== '.' ? <Text dimColor> · {truncate(folder, 28)}</Text> : null}
             </Box>
           );
         })

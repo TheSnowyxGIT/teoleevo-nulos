@@ -14,6 +14,7 @@ pilotables sans interrompre le moteur de rendu.
 - sélection à chaud parmi les sorties audio actives ;
 - analyse FFT en trois bandes : 20–250 Hz, 250 Hz–4 kHz et 4–16 kHz ;
 - niveau en dBFS, vumètres lissés et historique en direct ;
+- rendu Ink limité indépendamment de l'analyse audio pour rester réactif ;
 - options interactives pour la sortie, la réactivité et l’échelle ;
 - catalogue récursif, recherche instantanée et filtres de tags dans les presets `.milk` ;
 - quatre playlists système par tag et playlists personnalisées éditables ;
@@ -207,6 +208,7 @@ originale de NestDrop, notamment `Plugins\Milkdrop2\Presets`,
 --device <id>          identifiant d’une sortie Windows
 --fft-size <taille>    1024, 2048 ou 4096
 --fps <nombre>         de 10 à 60
+--ui-fps <nombre>      rafraîchissement du terminal de 5 à 30 (défaut 10)
 --floor <dB>           plancher visuel de -100 à -30 dB
 --helper <chemin>      chemin explicite vers AudioCapture.exe
 --nestdrop-dir <chemin> dossier racine de NestDropClassicV2x2 (mémorisé)

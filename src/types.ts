@@ -65,6 +65,7 @@ export interface AppOptions {
   deviceId?: string;
   fftSize: 1024 | 2048 | 4096;
   fps: number;
+  uiFps: number;
   meterFloor: number;
   helperPath?: string;
   nestDropDirectory?: string;
@@ -103,6 +104,7 @@ export interface UserSettings {
   nestDropDirectory?: string;
   deviceId?: string;
   smoothing: SmoothingProfile;
+  uiFps: number;
   meterFloor: number;
   showHistory: boolean;
   visualizerSettings: VisualizerSettings;

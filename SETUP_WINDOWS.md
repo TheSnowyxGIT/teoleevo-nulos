@@ -54,3 +54,6 @@ pnpm dev:audio
 ```
 
 Press `P` to select a preset, `O` for options, `F` for fullscreen, and `Q` to quit.
+
+If the terminal feels slow, open `O` and lower **FPS du terminal** to `5` or `8`.
+This does not change MilkDrop's rendering FPS.

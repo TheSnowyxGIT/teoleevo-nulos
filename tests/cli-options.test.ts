@@ -8,6 +8,7 @@ test('parseCli uses production defaults', () => {
   assert.equal(parsed.options.demo, false);
   assert.equal(parsed.options.fftSize, 2048);
   assert.equal(parsed.options.fps, 30);
+  assert.equal(parsed.options.uiFps, 10);
   assert.equal(parsed.options.meterFloor, -70);
   assert.deepEqual(parsed.options.visualizerSettings, {
     frameRate: 60,
@@ -23,6 +24,8 @@ test('parseCli accepts supported analysis options', () => {
     '4096',
     '--fps',
     '60',
+    '--ui-fps',
+    '15',
     '--floor',
     '-80',
     '--device',
@@ -49,6 +52,7 @@ test('parseCli accepts supported analysis options', () => {
     demo: true,
     fftSize: 4096,
     fps: 60,
+    uiFps: 15,
     meterFloor: -80,
     deviceId: 'speaker-id',
     nestDropDirectory: 'NestDropClassicV2x2',
@@ -65,7 +69,7 @@ test('parseCli accepts supported analysis options', () => {
 });
 
 test('parseCli keeps persisted defaults and lets explicit flags override them', () => {
-  const parsed = parseCli(['--visual-fps', '24'], {
+  const parsed = parseCli(['--', '--visual-fps', '24'], {
     ...DEFAULT_OPTIONS,
     deviceId: 'saved-speakers',
     meterFloor: -60,
@@ -88,6 +92,7 @@ test('parseCli keeps persisted defaults and lets explicit flags override them', 
 test('parseCli rejects unsupported values', () => {
   assert.throws(() => parseCli(['--fft-size', '1000']), /1024, 2048 ou 4096/);
   assert.throws(() => parseCli(['--fps', '2']), /entre 10 et 60/);
+  assert.throws(() => parseCli(['--ui-fps', '2']), /entre 5 et 30/);
   assert.throws(() => parseCli(['--visual-speed', '-0.1']), /entre 0 et 2/);
   assert.throws(() => parseCli(['--visual-fps', '2']), /entre 10 et 120/);
   assert.throws(() => parseCli(['--visual-volume', '1.1']), /entre 0 et 1/);

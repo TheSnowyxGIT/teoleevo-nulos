@@ -12,6 +12,7 @@ interface MeterProps {
   history: number[];
   width: number;
   showHistory: boolean;
+  compact?: boolean;
 }
 
 function meterBar(level: number, width: number): string {
@@ -36,12 +37,13 @@ export function Meter({
   history,
   width,
   showHistory,
+  compact = false,
 }: MeterProps): React.JSX.Element {
   // Fixed columns: labels (24), percentage (5), dB value (11), outer padding (2).
   const barWidth = Math.max(8, width - 42);
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
+    <Box flexDirection="column" marginBottom={compact ? 0 : 1}>
       <Box>
         <Box width={9}>
           <Text color={color} bold>

@@ -15,6 +15,7 @@ interface PlaylistDetailPanelProps {
   selectedIndex: number;
   currentPresetId?: string;
   active: boolean;
+  compact?: boolean;
 }
 
 const VISIBLE_ROWS = 10;
@@ -32,10 +33,12 @@ export function PlaylistDetailPanel({
   selectedIndex,
   currentPresetId,
   active,
+  compact = false,
 }: PlaylistDetailPanelProps): React.JSX.Element {
+  const visibleRows = compact ? 8 : VISIBLE_ROWS;
   const firstRow = Math.max(
     0,
-    Math.min(selectedIndex - 4, Math.max(0, presets.length - VISIBLE_ROWS)),
+    Math.min(selectedIndex - 4, Math.max(0, presets.length - visibleRows)),
   );
   const members = new Set(playlist.presetIds);
 
@@ -70,7 +73,11 @@ export function PlaylistDetailPanel({
               </Text>
             ))}
           </Box>
-          <Text dimColor>Entrée ajouter/retirer · ←/→ changer le tag · Tab contenu · Échap retour</Text>
+          <Text dimColor>
+            {compact
+              ? 'Entrée ajouter/retirer · ←/→ tag · Tab contenu · Échap retour'
+              : 'Entrée ajouter/retirer · ←/→ changer le tag · Tab contenu · Échap retour'}
+          </Text>
         </>
       ) : (
         <Text dimColor>
@@ -80,7 +87,7 @@ export function PlaylistDetailPanel({
         </Text>
       )}
 
-      <Box height={1} />
+      {!compact ? <Box height={1} /> : null}
       {presets.length === 0 ? (
         <Text color="yellow">
           {mode === 'contents'
@@ -89,13 +96,13 @@ export function PlaylistDetailPanel({
               : 'Playlist vide. Appuyez sur Tab pour ajouter des presets.'
             : 'Aucun preset pour cette recherche.'}
         </Text>
-      ) : presets.slice(firstRow, firstRow + VISIBLE_ROWS).map((preset, rowIndex) => {
+      ) : presets.slice(firstRow, firstRow + visibleRows).map((preset, rowIndex) => {
         const absoluteIndex = firstRow + rowIndex;
         const highlighted = absoluteIndex === selectedIndex;
         const folder = path.dirname(preset.relativePath);
         const playing = preset.id === currentPresetId;
         return (
-          <Box key={preset.id}>
+          <Box key={preset.id} height={1} overflowX="hidden">
             <Box width={3}><Text color={highlighted ? 'magenta' : undefined}>{highlighted ? '›' : ' '}</Text></Box>
             <Box width={5}>
               {mode === 'catalog' ? (
@@ -112,8 +119,8 @@ export function PlaylistDetailPanel({
                 color={playing ? 'green' : highlighted ? 'cyan' : undefined}
                 wrap="truncate-end"
               >
-                {truncate(preset.name, 50)}
-                {folder !== '.' ? <Text dimColor> · {truncate(folder, 26)}</Text> : null}
+                {truncate(preset.name, compact ? 42 : 50)}
+                {!compact && folder !== '.' ? <Text dimColor> · {truncate(folder, 26)}</Text> : null}
               </Text>
             </Box>
           </Box>

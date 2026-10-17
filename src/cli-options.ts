@@ -11,7 +11,8 @@ Options:
   --demo                 Utilise un signal musical simulé
   --device <id>          Sélectionne une sortie audio Windows
   --fft-size <taille>    1024, 2048 (défaut) ou 4096
-  --fps <nombre>         Rafraîchissement entre 10 et 60 (défaut: 30)
+  --fps <nombre>         Analyse audio entre 10 et 60 Hz (défaut: 30)
+  --ui-fps <nombre>      Rafraîchissement Ink entre 5 et 30 FPS (défaut: 10)
   --floor <dB>           Plancher des vumètres, de -100 à -30 (défaut: -70)
   --helper <chemin>      Chemin explicite vers AudioCapture.exe
   --nestdrop-dir <chemin> Racine de l'installation NestDropClassicV2x2 (mémorisée)
@@ -53,6 +54,8 @@ export function parseCli(args: string[], defaults: AppOptions = DEFAULT_OPTIONS)
     const argument = args[index];
 
     switch (argument) {
+      case '--':
+        break;
       case '--demo':
         options.demo = true;
         break;
@@ -75,6 +78,15 @@ export function parseCli(args: string[], defaults: AppOptions = DEFAULT_OPTIONS)
           throw new Error('--fps doit être un entier entre 10 et 60');
         }
         options.fps = value;
+        index += 1;
+        break;
+      }
+      case '--ui-fps': {
+        const value = Number(readValue(args, index, argument));
+        if (!Number.isInteger(value) || value < 5 || value > 30) {
+          throw new Error('--ui-fps doit être un entier entre 5 et 30');
+        }
+        options.uiFps = value;
         index += 1;
         break;
       }

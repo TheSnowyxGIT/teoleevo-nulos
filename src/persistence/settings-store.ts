@@ -22,6 +22,7 @@ export function defaultUserSettings(): UserSettings {
   return {
     version: 1,
     smoothing: 'balanced',
+    uiFps: DEFAULT_OPTIONS.uiFps,
     meterFloor: DEFAULT_OPTIONS.meterFloor,
     showHistory: true,
     visualizerSettings: {...DEFAULT_OPTIONS.visualizerSettings},
@@ -41,6 +42,7 @@ export function optionsFromSettings(settings: UserSettings): AppOptions {
       ? {nestDropDirectory: process.env['TEOLEEVO_NESTDROP_DIR'] ?? settings.nestDropDirectory}
       : {}),
     ...(settings.deviceId ? {deviceId: settings.deviceId} : {}),
+    uiFps: settings.uiFps,
     meterFloor: settings.meterFloor,
     visualizerSettings: {...settings.visualizerSettings},
   };
@@ -87,6 +89,7 @@ function parseSettings(value: unknown): UserSettings {
     smoothing: smoothingValues.has(String(value['smoothing']))
       ? (value['smoothing'] as UserSettings['smoothing'])
       : defaults.smoothing,
+    uiFps: finiteNumber(value['uiFps'], defaults.uiFps, 5, 30),
     meterFloor: finiteNumber(value['meterFloor'], defaults.meterFloor, -100, -30),
     showHistory:
       typeof value['showHistory'] === 'boolean' ? value['showHistory'] : defaults.showHistory,

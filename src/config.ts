@@ -4,6 +4,7 @@ export const DEFAULT_OPTIONS: AppOptions = {
   demo: false,
   fftSize: 2048,
   fps: 30,
+  uiFps: 10,
   meterFloor: -70,
   visualizerSettings: {
     frameRate: 60,
@@ -54,6 +55,7 @@ export const SMOOTHING_ORDER: SmoothingProfile[] = [
 ];
 
 export const METER_FLOORS = [-80, -70, -60, -50] as const;
+export const TERMINAL_FRAME_RATES = [5, 8, 10, 12, 15, 20, 30] as const;
 
 export const VISUAL_FRAME_RATES = [10, 15, 20, 24, 30, 45, 60, 90, 120] as const;
 export const ANIMATION_SPEEDS = [

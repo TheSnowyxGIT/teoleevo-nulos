@@ -27,6 +27,7 @@ test('SettingsStore persists options and custom playlists', async () => {
       nestDropDirectory: String.raw`D:\Apps\NestDropClassicV2x2`,
       deviceId: 'speakers',
       smoothing: 'fast' as const,
+      uiFps: 8,
       meterFloor: -60,
       showHistory: false,
       selectedDisplayId: String.raw`\\.\DISPLAY2`,
@@ -52,6 +53,7 @@ test('SettingsStore ignores invalid custom playlists and clamps options', async 
   try {
     await writeFile(filePath, JSON.stringify({
       meterFloor: -200,
+      uiFps: 100,
       visualizerSettings: {frameRate: 500, speed: -2, audioGain: 8},
       autoSwitchEnabled: 'yes',
       autoSwitchSeconds: 9000,
@@ -63,6 +65,7 @@ test('SettingsStore ignores invalid custom playlists and clamps options', async 
     }));
     const settings = await new SettingsStore(filePath).load();
     assert.equal(settings.meterFloor, -100);
+    assert.equal(settings.uiFps, 30);
     assert.deepEqual(settings.visualizerSettings, {frameRate: 120, speed: 0, audioGain: 1});
     assert.equal(settings.autoSwitchEnabled, false);
     assert.equal(settings.autoSwitchSeconds, 3600);
