@@ -61,6 +61,15 @@ export function nestDropRegistryValues(settings: VisualizerSettings): Record<str
   };
 }
 
+export function nestDropOutputValues(
+  display: Pick<VisualizerDisplay, 'width' | 'height'>,
+): Record<string, number> {
+  return {
+    SpoutWidth: Math.max(1, Math.round(display.width)),
+    SpoutHeight: Math.max(1, Math.round(display.height)),
+  };
+}
+
 export class NestDropVisualizer implements VisualizerController {
   readonly initialStatus: VisualizerStatus = {
     state: 'stopped',
@@ -123,9 +132,23 @@ export class NestDropVisualizer implements VisualizerController {
     enabled: boolean,
     display?: VisualizerDisplay,
   ): Promise<void> {
+    const previousDisplay = this.fullscreenDisplay;
     this.fullscreenEnabled = enabled;
     if (display) this.fullscreenDisplay = display;
     if (!this.child) return;
+
+    if (
+      display &&
+      (!previousDisplay ||
+        display.width !== previousDisplay.width ||
+        display.height !== previousDisplay.height) &&
+      this.currentPreset
+    ) {
+      const preset = this.currentPreset;
+      await this.stopRenderer();
+      await this.launch(preset);
+      return;
+    }
 
     if (!enabled) {
       await this.writeRegistry('FullScreenL', hiddenWindowPosition);
@@ -181,6 +204,11 @@ export class NestDropVisualizer implements VisualizerController {
   private async launch(preset: Preset): Promise<void> {
     this.update({state: 'starting', message: `Ouverture MilkDrop 2 · ${preset.name}…`});
     try {
+      const outputDisplay = this.fullscreenDisplay ?? (await this.listDisplays())[0];
+      if (outputDisplay) {
+        this.fullscreenDisplay = outputDisplay;
+        await this.writeOutputResolution(outputDisplay);
+      }
       await this.writeSettings();
       await this.writeRegistry('TransitionDelay', 1_500);
       await this.writeRegistry('QuitRequest', 0);
@@ -261,6 +289,14 @@ export class NestDropVisualizer implements VisualizerController {
     );
   }
 
+  private async writeOutputResolution(display: VisualizerDisplay): Promise<void> {
+    await Promise.all(
+      Object.entries(nestDropOutputValues(display)).map(([name, value]) =>
+        this.writeRegistry(name, value),
+      ),
+    );
+  }
+
   private async openOutputWindow(display: VisualizerDisplay): Promise<void> {
     // FullScreenL is the final trigger that creates the visible DirectX output.
     await this.writeRegistry('FullScreenL', hiddenWindowPosition);
@@ -298,9 +334,12 @@ export class NestDropVisualizer implements VisualizerController {
 
   private markRunning(): void {
     if (!this.currentPreset) return;
+    const resolution = this.fullscreenDisplay
+      ? `rendu ${this.fullscreenDisplay.width}×${this.fullscreenDisplay.height}`
+      : 'résolution NestDrop';
     this.update({
       state: 'running',
-      message: `MilkDrop 2 · ${this.fullscreenEnabled ? `plein écran ${this.fullscreenDisplay?.name ?? ''}` : 'sortie masquée'} · ${this.deviceName ?? 'sortie Windows par défaut'} · ${this.settings.frameRate} FPS`,
+      message: `MilkDrop 2 · ${resolution} · ${this.fullscreenEnabled ? `plein écran ${this.fullscreenDisplay?.name ?? ''}` : 'sortie masquée'} · ${this.deviceName ?? 'sortie Windows par défaut'} · ${this.settings.frameRate} FPS`,
       preset: this.currentPreset,
     });
   }

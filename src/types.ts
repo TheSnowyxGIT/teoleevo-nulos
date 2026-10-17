@@ -2,52 +2,6 @@ export type BandName = 'bass' | 'mids' | 'treble';
 
 export type BandValues = Record<BandName, number>;
 
-export interface AudioFeatures {
-  loudnessDb: number;
-  subBassDb: number;
-  lowMidDb: number;
-  highMidDb: number;
-  spectralCentroid: number;
-  spectralFlux: number;
-}
-
-export type RhythmStatus = {
-  state: 'disabled' | 'unavailable' | 'starting' | 'running' | 'error';
-  message: string;
-  bpm?: number;
-  beatPosition?: number;
-  meter?: number;
-  beatActivation: number;
-  downbeatActivation: number;
-  latencyMs?: number;
-  pulse: boolean;
-  downbeat: boolean;
-};
-
-export type MusicEventState =
-  | 'waiting'
-  | 'learning'
-  | 'neutral'
-  | 'build-up'
-  | 'drop'
-  | 'breakdown';
-
-export interface MusicEventAnalysis {
-  state: MusicEventState;
-  message: string;
-  confidence: number;
-  dropTriggered: boolean;
-  dropTimestamp?: number;
-  barsObserved: number;
-  metrics: {
-    drop: number;
-    impact: number;
-    bassReturn: number;
-    buildUp: number;
-    novelty: number;
-  };
-}
-
 export interface AudioDevice {
   id: string;
   name: string;
@@ -57,7 +11,6 @@ export interface AudioDevice {
 export interface SpectrumFrame {
   timestamp: number;
   db: BandValues;
-  features: AudioFeatures;
   hasSignal: boolean;
 }
 
@@ -78,7 +31,6 @@ export type CaptureStatus =
 export interface CaptureEvents {
   onDevices(devices: AudioDevice[]): void;
   onFrame(frame: SpectrumFrame): void;
-  onRhythm(status: RhythmStatus): void;
   onInfo(info: CaptureInfo): void;
   onStatus(status: CaptureStatus): void;
 }
@@ -119,8 +71,6 @@ export interface AppOptions {
   textureDirectory?: string;
   rendererPath?: string;
   nestDropRendererPath?: string;
-  beatNet: boolean;
-  autoDropPresets: boolean;
   visualizerSettings: VisualizerSettings;
 }
 

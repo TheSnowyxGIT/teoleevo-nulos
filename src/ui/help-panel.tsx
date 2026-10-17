@@ -35,9 +35,6 @@ export function HelpPanel(): React.JSX.Element {
         <Text bold>S</Text> Changer la réactivité des vumètres
       </Text>
       <Text>
-        <Text bold>A</Text> Activer / désactiver le changement sur drop
-      </Text>
-      <Text>
         <Text bold>H</Text> Fermer cette aide
       </Text>
       <Text>

@@ -19,11 +19,8 @@ Options:
   --renderer <chemin>    Chemin explicite vers Visualizer.exe/.dll
   --nestdrop-renderer <chemin> Chemin vers NestDrop_SpoutSender.exe
   --visual-speed <ratio> Vitesse MilkDrop, de 0 à 2 (défaut: 1.07175)
-  --visual-fps <nombre>  Images/s de la fenêtre, de 10 à 120 (défaut: 30)
+  --visual-fps <nombre>  Images/s de la fenêtre, de 10 à 120 (défaut: 60)
   --visual-volume <ratio> Réaction audio visuelle, de 0 à 1 (défaut: 1)
-  --no-beatnet           Désactive le suivi neuronal beat/downbeat
-  --auto-drop            Active le changement de preset sur les drops
-  --no-auto-drop         Force sa désactivation
   -h, --help             Affiche cette aide
 
 Dans l'application:
@@ -57,15 +54,6 @@ export function parseCli(args: string[]): ParsedCli {
     switch (argument) {
       case '--demo':
         options.demo = true;
-        break;
-      case '--no-beatnet':
-        options.beatNet = false;
-        break;
-      case '--no-auto-drop':
-        options.autoDropPresets = false;
-        break;
-      case '--auto-drop':
-        options.autoDropPresets = true;
         break;
       case '--device':
         options.deviceId = readValue(args, index, argument);

@@ -8,8 +8,6 @@ test('parseCli uses production defaults', () => {
   assert.equal(parsed.options.fftSize, 2048);
   assert.equal(parsed.options.fps, 30);
   assert.equal(parsed.options.meterFloor, -70);
-  assert.equal(parsed.options.beatNet, true);
-  assert.equal(parsed.options.autoDropPresets, false);
   assert.deepEqual(parsed.options.visualizerSettings, {
     frameRate: 60,
     speed: 1.07175,
@@ -42,8 +40,6 @@ test('parseCli accepts supported analysis options', () => {
     '24',
     '--visual-volume',
     '0.5',
-    '--no-beatnet',
-    '--auto-drop',
   ]);
 
   assert.deepEqual(parsed.options, {
@@ -56,8 +52,6 @@ test('parseCli accepts supported analysis options', () => {
     textureDirectory: 'textures',
     rendererPath: 'projectMSDL.exe',
     nestDropRendererPath: 'NestDrop_SpoutSender.exe',
-    beatNet: false,
-    autoDropPresets: true,
     visualizerSettings: {
       frameRate: 24,
       speed: 0.05,
@@ -72,5 +66,7 @@ test('parseCli rejects unsupported values', () => {
   assert.throws(() => parseCli(['--visual-speed', '-0.1']), /entre 0 et 2/);
   assert.throws(() => parseCli(['--visual-fps', '2']), /entre 10 et 120/);
   assert.throws(() => parseCli(['--visual-volume', '1.1']), /entre 0 et 1/);
+  assert.throws(() => parseCli(['--auto-drop']), /Option inconnue/);
+  assert.throws(() => parseCli(['--no-beatnet']), /Option inconnue/);
   assert.throws(() => parseCli(['--wat']), /Option inconnue/);
 });

@@ -1,13 +1,12 @@
 namespace Teoleevo.AudioCapture;
 
-internal sealed record Options(string? DeviceId, int FftSize, int Fps, bool BeatNetPcm)
+internal sealed record Options(string? DeviceId, int FftSize, int Fps)
 {
     public static Options Parse(string[] args)
     {
         string? deviceId = null;
         var fftSize = 2048;
         var fps = 30;
-        var beatNetPcm = false;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -21,9 +20,6 @@ internal sealed record Options(string? DeviceId, int FftSize, int Fps, bool Beat
                     break;
                 case "--fps":
                     fps = int.Parse(ReadValue(args, ref index));
-                    break;
-                case "--beatnet-pcm":
-                    beatNetPcm = true;
                     break;
                 default:
                     throw new ArgumentException($"Option inconnue: {args[index]}");
@@ -40,7 +36,7 @@ internal sealed record Options(string? DeviceId, int FftSize, int Fps, bool Beat
             throw new ArgumentException("Le rafraîchissement doit être compris entre 10 et 60 FPS.");
         }
 
-        return new Options(deviceId, fftSize, fps, beatNetPcm);
+        return new Options(deviceId, fftSize, fps);
     }
 
     private static string ReadValue(string[] args, ref int index)

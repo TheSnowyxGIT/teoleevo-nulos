@@ -14,7 +14,6 @@ interface SettingsPanelProps {
   smoothing: SmoothingProfile;
   meterFloor: number;
   showHistory: boolean;
-  autoDropPresets: boolean;
   displays: VisualizerDisplay[];
   selectedDisplayIndex: number;
   fullscreenOutput: boolean;
@@ -50,7 +49,6 @@ export function SettingsPanel({
   smoothing,
   meterFloor,
   showHistory,
-  autoDropPresets,
   displays,
   selectedDisplayIndex,
   fullscreenOutput,
@@ -114,11 +112,6 @@ export function SettingsPanel({
         active={selectedRow === 8}
         label="Plein écran"
         value={fullscreenOutput ? 'Activé' : 'Désactivé'}
-      />
-      <Row
-        active={selectedRow === 9}
-        label="Preset sur drop"
-        value={autoDropPresets ? 'Activé' : 'Désactivé'}
       />
     </Box>
   );

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {nestDropRegistryValues} from '../src/visualizer/nestdrop-visualizer.js';
+import {
+  nestDropOutputValues,
+  nestDropRegistryValues,
+} from '../src/visualizer/nestdrop-visualizer.js';
 
 test('NestDrop settings use the renderer native scales', () => {
   assert.deepEqual(
@@ -21,4 +24,11 @@ test('NestDrop audio reaction is clamped to its native 0..1 range', () => {
     nestDropRegistryValues({frameRate: 30, speed: 0.05, audioGain: 2}).Bass,
     1000,
   );
+});
+
+test('NestDrop renders with the selected display aspect ratio', () => {
+  assert.deepEqual(nestDropOutputValues({width: 3440, height: 1440}), {
+    SpoutWidth: 3440,
+    SpoutHeight: 1440,
+  });
 });

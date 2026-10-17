@@ -20,8 +20,6 @@ import type {
   CaptureInfo,
   CaptureSource,
   CaptureStatus,
-  MusicEventAnalysis,
-  RhythmStatus,
   Preset,
   SmoothingProfile,
   VisualizerController,
@@ -29,16 +27,13 @@ import type {
   VisualizerSettings,
   VisualizerStatus,
 } from '../types.js';
-import {initialMusicEvent, MusicEventDetector} from '../detection/music-event-detector.js';
 import {
   PRESET_TAG_FILTERS,
   type PresetTagFilter,
 } from '../presets/tags.js';
 import {HelpPanel} from './help-panel.js';
 import {Meter} from './meter.js';
-import {MusicEventPanel} from './music-event-panel.js';
 import {PresetPanel} from './preset-panel.js';
-import {RhythmPanel} from './rhythm-panel.js';
 import {SettingsPanel} from './settings-panel.js';
 
 interface AppProps {
@@ -73,22 +68,10 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     treble: [],
   });
   const [hasSignal, setHasSignal] = useState(false);
-  const [rhythm, setRhythm] = useState<RhythmStatus>({
-    state: options.beatNet ? 'starting' : 'disabled',
-    message: options.beatNet ? 'Chargement de BeatNet…' : 'BeatNet désactivé',
-    beatActivation: 0,
-    downbeatActivation: 0,
-    pulse: false,
-    downbeat: false,
-  });
-  const [musicEvent, setMusicEvent] = useState<MusicEventAnalysis>(() =>
-    initialMusicEvent(),
-  );
   const [paused, setPaused] = useState(false);
   const [smoothing, setSmoothing] = useState<SmoothingProfile>('balanced');
   const [meterFloor, setMeterFloor] = useState(options.meterFloor);
   const [showHistory, setShowHistory] = useState(true);
-  const [autoDropPresets, setAutoDropPresets] = useState(options.autoDropPresets);
   const [visualizerSettings, setVisualizerSettings] = useState<VisualizerSettings>(
     options.visualizerSettings,
   );
@@ -109,9 +92,6 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
   const smoothingRef = useRef(smoothing);
   const meterFloorRef = useRef(meterFloor);
   const levelsRef = useRef<BandValues>(EMPTY_BANDS);
-  const detectorRef = useRef(new MusicEventDetector());
-  const deviceIdRef = useRef<string | undefined>(undefined);
-  const handledDropRef = useRef<number | undefined>(undefined);
   pausedRef.current = paused;
   smoothingRef.current = smoothing;
   meterFloorRef.current = meterFloor;
@@ -120,23 +100,9 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     void source
       .start({
         onDevices: setDevices,
-        onInfo: nextInfo => {
-          if (deviceIdRef.current && deviceIdRef.current !== nextInfo.deviceId) {
-            setMusicEvent(
-              detectorRef.current.reset('Nouvelle sortie · apprentissage relancé'),
-            );
-          }
-          deviceIdRef.current = nextInfo.deviceId;
-          setInfo(nextInfo);
-        },
+        onInfo: setInfo,
         onStatus: setStatus,
-        onRhythm: nextRhythm => {
-          setRhythm(nextRhythm);
-          const nextEvent = detectorRef.current.onRhythm(nextRhythm);
-          if (nextEvent) setMusicEvent(nextEvent);
-        },
         onFrame: frame => {
-          detectorRef.current.addFrame(frame);
           if (pausedRef.current) return;
           setHasSignal(frame.hasSignal);
           setDb(frame.db);
@@ -176,9 +142,13 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     void visualizer.listDisplays().then(nextDisplays => {
       if (!active) return;
       setDisplays(nextDisplays);
-      setSelectedDisplayIndex(
-        Math.max(0, nextDisplays.findIndex(display => display.isPrimary)),
+      const primaryIndex = Math.max(
+        0,
+        nextDisplays.findIndex(display => display.isPrimary),
       );
+      setSelectedDisplayIndex(primaryIndex);
+      const primaryDisplay = nextDisplays[primaryIndex];
+      if (primaryDisplay) void visualizer.setFullscreen(false, primaryDisplay);
     });
     return () => {
       active = false;
@@ -225,38 +195,6 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     if (preset) showPreset(preset);
   };
 
-  useEffect(() => {
-    const dropTimestamp = musicEvent.dropTimestamp;
-    if (!musicEvent.dropTriggered || dropTimestamp === undefined) return;
-    if (handledDropRef.current === dropTimestamp) return;
-    handledDropRef.current = dropTimestamp;
-    if (!autoDropPresets || visualizerStatus.state !== 'running') return;
-
-    const visualPresets = presets.some(
-      preset => !preset.relativePath.startsWith('! Transition'),
-    )
-      ? presets.filter(preset => !preset.relativePath.startsWith('! Transition'))
-      : presets;
-    const currentIndex = visualPresets.findIndex(
-      preset => preset.id === currentPreset?.id,
-    );
-    const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % visualPresets.length;
-    const nextPreset = visualPresets[nextIndex];
-    if (nextPreset) {
-      setCurrentPreset(nextPreset);
-      setPanel('none');
-      void visualizer.showPreset(nextPreset);
-    }
-  }, [
-    autoDropPresets,
-    currentPreset?.id,
-    musicEvent.dropTimestamp,
-    musicEvent.dropTriggered,
-    presets,
-    visualizer,
-    visualizerStatus.state,
-  ]);
-
   const cycleDevice = (direction: 1 | -1): void => {
     if (devices.length < 2) return;
     const currentIndex = Math.max(
@@ -275,7 +213,7 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     if (displays.length < 2) return;
     setSelectedDisplayIndex(current => {
       const next = (current + direction + displays.length) % displays.length;
-      if (fullscreenOutput) void visualizer.setFullscreen(true, displays[next]);
+      void visualizer.setFullscreen(fullscreenOutput, displays[next]);
       return next;
     });
   };
@@ -331,9 +269,6 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
       case 8:
         toggleFullscreenOutput();
         break;
-      case 9:
-        setAutoDropPresets(current => !current);
-        break;
     }
   };
 
@@ -379,7 +314,7 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     if (panel === 'settings') {
       if (input.toLowerCase() === 'o') setPanel('none');
       else if (key.upArrow) setSelectedRow(row => Math.max(0, row - 1));
-      else if (key.downArrow) setSelectedRow(row => Math.min(9, row + 1));
+      else if (key.downArrow) setSelectedRow(row => Math.min(8, row + 1));
       else if (key.leftArrow) changeSetting(-1);
       else if (key.rightArrow || key.return) changeSetting(1);
       return;
@@ -421,7 +356,6 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     else if (input.toLowerCase() === 'd') cycleDevice(1);
     else if (input.toLowerCase() === 's') cycleSmoothing(1);
     else if (input.toLowerCase() === 'f') toggleFullscreenOutput();
-    else if (input.toLowerCase() === 'a') setAutoDropPresets(current => !current);
   });
 
   const contentWidth = Math.max(46, Math.min(columns - 4, 110));
@@ -482,20 +416,6 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
         ))}
       </Box>
 
-      <RhythmPanel rhythm={rhythm} width={contentWidth} />
-
-      <MusicEventPanel
-        analysis={musicEvent}
-        width={contentWidth}
-        autoPreset={autoDropPresets}
-        autoPresetArmed={
-          autoDropPresets &&
-          rhythm.state === 'running' &&
-          visualizerStatus.state === 'running' &&
-          presets.length > 0
-        }
-      />
-
       <Box borderStyle="round" borderColor={visualizerColor} paddingX={1} marginBottom={1}>
         <Box flexDirection="column" flexGrow={1}>
           <Text wrap="truncate-end">
@@ -528,7 +448,6 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
           smoothing={smoothing}
           meterFloor={meterFloor}
           showHistory={showHistory}
-          autoDropPresets={autoDropPresets}
           displays={displays}
           selectedDisplayIndex={selectedDisplayIndex}
           fullscreenOutput={fullscreenOutput}
@@ -547,7 +466,7 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
         />
       ) : (
         <Box justifyContent="space-between">
-          <Text dimColor>P presets · V moteur · F plein écran · A auto-drop · O options · Q quitter</Text>
+          <Text dimColor>P presets · N/B changer · V moteur · F plein écran · O options · Q quitter</Text>
           <Text dimColor>{SMOOTHING_PROFILES[smoothing].label} · {meterFloor} dB</Text>
         </Box>
       )}

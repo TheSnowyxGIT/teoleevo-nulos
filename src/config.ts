@@ -5,8 +5,6 @@ export const DEFAULT_OPTIONS: AppOptions = {
   fftSize: 2048,
   fps: 30,
   meterFloor: -70,
-  beatNet: true,
-  autoDropPresets: false,
   visualizerSettings: {
     frameRate: 60,
     speed: 1.07175,
