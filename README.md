@@ -16,6 +16,8 @@ pilotables sans interrompre le moteur de rendu.
 - niveau en dBFS, vumètres lissés et historique en direct ;
 - options interactives pour la sortie, la réactivité et l’échelle ;
 - catalogue récursif, recherche instantanée et filtres de tags dans les presets `.milk` ;
+- quatre playlists système par tag et playlists personnalisées éditables ;
+- copie et fusion de playlists avec sauvegarde automatique des préférences ;
 - preview moteur persistante et sortie plein écran sélectionnable par moniteur ;
 - vitesse globale, volume de réaction musicale et framerate réglables à chaud ;
 - rendu MilkDrop 2 natif via NestDrop, avec libprojectM comme solution de repli ;
@@ -102,6 +104,7 @@ pnpm start
 | --- | --- |
 | `Espace` | Pause/reprise de l’affichage |
 | `O` | Options interactives |
+| `L` | Choisir ou gérer les playlists |
 | `P` | Chercher et sélectionner un preset `.milk` |
 | `Tab` | Changer le filtre de tag dans le sélecteur de presets |
 | `V` | Démarrer ou arrêter le moteur et sa fenêtre de preview |
@@ -127,6 +130,43 @@ Dans le sélecteur de presets (`P`), `Tab` fait défiler les filtres `Tous`,
 manuel : ils ne déclenchent aucune détection ni aucun changement automatique.
 La recherche textuelle s’applique en même temps que le filtre. Les touches `N`
 et `B` passent directement au preset suivant ou précédent.
+
+## Playlists
+
+Utilisez `L` pour ouvrir le gestionnaire. Quatre playlists système sont générées
+automatiquement depuis les tags : `Build-up`, `Drop`, `Verse` et `Other`. Elles
+sont en lecture seule afin que le classement de base reste toujours disponible.
+`Entrée` ouvre le détail de la playlist sélectionnée et `A` l’active. Ensuite,
+`N` et `B` utilisent uniquement ses presets. Le sélecteur `P` continue de
+chercher dans le catalogue complet pour permettre d’ouvrir directement
+n’importe quel preset.
+
+Dans le gestionnaire :
+
+- `N` crée une playlist vide ;
+- `C` copie la playlist sélectionnée, y compris une playlist système ;
+- `M` ouvre une sélection multiple : `Espace` coche autant de playlists que
+  nécessaire, puis `Entrée` crée leur union sans doublons ;
+- `R` renomme et `D` supprime une playlist personnalisée.
+
+Dans le détail d’une playlist, `Entrée` lance le preset sélectionné et `A`
+active la playlist. Pour une playlist personnalisée, `X` retire un preset et
+`Tab` ouvre le catalogue d’ajout/retrait. Les playlists système proposent le
+même écran de consultation, mais restent en lecture seule.
+
+L’écran principal affiche la file de lecture. Lorsqu’un preset choisi avec `P`
+n’appartient pas à la playlist active, il apparaît dans une section prioritaire
+temporaire. Le prochain appui sur `N` reprend ensuite au début de la playlist
+active.
+
+Les playlists personnalisées, la playlist active, le filtre de tag, la sortie
+audio, l’écran sélectionné et les options visuelles sont sauvegardés
+automatiquement. Les quatre playlists système ne sont pas écrites dans le
+fichier : elles sont reconstruites depuis les tags à chaque lancement. Sous WSL
+et Linux, les réglages sont stockés dans
+`~/.config/teoleevo/settings.json`; sous Windows, dans
+`%APPDATA%\Teoleevo\settings.json`. La variable `TEOLEEVO_CONFIG_PATH` permet
+de choisir un autre fichier.
 
 ## Options de ligne de commande
 

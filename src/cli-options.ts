@@ -24,7 +24,7 @@ Options:
   -h, --help             Affiche cette aide
 
 Dans l'application:
-  P  presets     V  moteur visuel     F  plein écran     O  options     Q  quitter
+  L  playlists     P  presets     N/B  suivant/précédent     O  options     Q  quitter
 `;
 
 export interface ParsedCli {
@@ -41,10 +41,10 @@ function readValue(args: string[], index: number, flag: string): string {
   return value;
 }
 
-export function parseCli(args: string[]): ParsedCli {
+export function parseCli(args: string[], defaults: AppOptions = DEFAULT_OPTIONS): ParsedCli {
   const options: AppOptions = {
-    ...DEFAULT_OPTIONS,
-    visualizerSettings: {...DEFAULT_OPTIONS.visualizerSettings},
+    ...defaults,
+    visualizerSettings: {...defaults.visualizerSettings},
   };
   let help = false;
 

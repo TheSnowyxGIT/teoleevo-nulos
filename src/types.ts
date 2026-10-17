@@ -84,6 +84,32 @@ export interface Preset {
 
 export type PresetTag = 'build-up' | 'drop' | 'verse' | 'other';
 
+export interface Playlist {
+  id: string;
+  name: string;
+  presetIds: string[];
+  readonly: boolean;
+}
+
+export interface CustomPlaylist {
+  id: string;
+  name: string;
+  presetIds: string[];
+}
+
+export interface UserSettings {
+  version: 1;
+  deviceId?: string;
+  smoothing: SmoothingProfile;
+  meterFloor: number;
+  showHistory: boolean;
+  visualizerSettings: VisualizerSettings;
+  selectedDisplayId?: string;
+  selectedPlaylistId: string;
+  presetTagFilter: 'all' | PresetTag;
+  customPlaylists: CustomPlaylist[];
+}
+
 export type VisualizerStatus =
   | {state: 'stopped'; message: string}
   | {state: 'starting'; message: string}

@@ -17,6 +17,9 @@ export function HelpPanel(): React.JSX.Element {
         <Text bold>P</Text> Chercher et ouvrir un preset MilkDrop
       </Text>
       <Text>
+        <Text bold>L</Text> Playlists : Entrée détail, A activer, M fusion multiple
+      </Text>
+      <Text>
         <Text bold>Tab</Text> Filtrer les presets par build-up, drop, verse ou other
       </Text>
       <Text>
@@ -26,7 +29,7 @@ export function HelpPanel(): React.JSX.Element {
         <Text bold>F</Text> Afficher / masquer la sortie plein écran
       </Text>
       <Text>
-        <Text bold>N / B</Text> Preset suivant / précédent
+        <Text bold>N / B</Text> Suivant / précédent dans la playlist active
       </Text>
       <Text>
         <Text bold>D</Text> Passer rapidement à la sortie audio suivante

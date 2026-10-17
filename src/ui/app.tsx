@@ -20,8 +20,11 @@ import type {
   CaptureInfo,
   CaptureSource,
   CaptureStatus,
+  CustomPlaylist,
+  Playlist,
   Preset,
   SmoothingProfile,
+  UserSettings,
   VisualizerController,
   VisualizerDisplay,
   VisualizerSettings,
@@ -31,9 +34,22 @@ import {
   PRESET_TAG_FILTERS,
   type PresetTagFilter,
 } from '../presets/tags.js';
+import {
+  buildPlaylists,
+  createCustomPlaylist,
+  DEFAULT_PLAYLIST_ID,
+  mergePresetIds,
+  uniquePlaylistName,
+} from '../playlists/playlists.js';
 import {HelpPanel} from './help-panel.js';
 import {Meter} from './meter.js';
+import {
+  PlaylistDetailPanel,
+  type PlaylistDetailMode,
+} from './playlist-detail-panel.js';
+import {PlaylistPanel, type PlaylistDialog} from './playlist-panel.js';
 import {PresetPanel} from './preset-panel.js';
+import {QueuePanel} from './queue-panel.js';
 import {SettingsPanel} from './settings-panel.js';
 
 interface AppProps {
@@ -41,6 +57,8 @@ interface AppProps {
   options: AppOptions;
   presets: Preset[];
   visualizer: VisualizerController;
+  initialSettings: UserSettings;
+  saveSettings(settings: UserSettings): Promise<void>;
 }
 
 const BANDS: BandName[] = ['bass', 'mids', 'treble'];
@@ -51,7 +69,14 @@ function nextInList<T>(items: readonly T[], current: T, direction: 1 | -1): T {
   return items[(currentIndex + direction + items.length) % items.length] ?? current;
 }
 
-export function App({source, options, presets, visualizer}: AppProps): React.JSX.Element {
+export function App({
+  source,
+  options,
+  presets,
+  visualizer,
+  initialSettings,
+  saveSettings,
+}: AppProps): React.JSX.Element {
   const {exit} = useApp();
   const {columns} = useWindowSize();
   const [status, setStatus] = useState<CaptureStatus>({
@@ -69,20 +94,41 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
   });
   const [hasSignal, setHasSignal] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [smoothing, setSmoothing] = useState<SmoothingProfile>('balanced');
+  const [smoothing, setSmoothing] = useState<SmoothingProfile>(initialSettings.smoothing);
   const [meterFloor, setMeterFloor] = useState(options.meterFloor);
-  const [showHistory, setShowHistory] = useState(true);
+  const [showHistory, setShowHistory] = useState(initialSettings.showHistory);
   const [visualizerSettings, setVisualizerSettings] = useState<VisualizerSettings>(
     options.visualizerSettings,
   );
   const [displays, setDisplays] = useState<VisualizerDisplay[]>([]);
   const [selectedDisplayIndex, setSelectedDisplayIndex] = useState(0);
   const [fullscreenOutput, setFullscreenOutput] = useState(false);
-  const [panel, setPanel] = useState<'none' | 'settings' | 'help' | 'presets'>('none');
+  const [panel, setPanel] = useState<
+    'none' | 'settings' | 'help' | 'presets' | 'playlists' | 'playlist-detail'
+  >('none');
   const [selectedRow, setSelectedRow] = useState(0);
   const [presetQuery, setPresetQuery] = useState('');
-  const [presetTagFilter, setPresetTagFilter] = useState<PresetTagFilter>('all');
+  const [presetTagFilter, setPresetTagFilter] = useState<PresetTagFilter>(
+    initialSettings.presetTagFilter,
+  );
   const [presetIndex, setPresetIndex] = useState(0);
+  const [customPlaylists, setCustomPlaylists] = useState<CustomPlaylist[]>(
+    initialSettings.customPlaylists,
+  );
+  const [activePlaylistId, setActivePlaylistId] = useState(
+    initialSettings.selectedPlaylistId,
+  );
+  const [playlistIndex, setPlaylistIndex] = useState(0);
+  const [playlistDialog, setPlaylistDialog] = useState<PlaylistDialog>({type: 'browse'});
+  const [detailPlaylistId, setDetailPlaylistId] = useState<string>();
+  const [playlistDetailMode, setPlaylistDetailMode] =
+    useState<PlaylistDetailMode>('contents');
+  const [playlistDetailIndex, setPlaylistDetailIndex] = useState(0);
+  const [playlistCatalogQuery, setPlaylistCatalogQuery] = useState('');
+  const [playlistCatalogTagFilter, setPlaylistCatalogTagFilter] =
+    useState<PresetTagFilter>('all');
+  const [playlistCatalogIndex, setPlaylistCatalogIndex] = useState(0);
+  const [settingsError, setSettingsError] = useState<string>();
   const [currentPreset, setCurrentPreset] = useState<Preset>();
   const [visualizerStatus, setVisualizerStatus] = useState<VisualizerStatus>(
     visualizer.initialStatus,
@@ -95,6 +141,26 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
   pausedRef.current = paused;
   smoothingRef.current = smoothing;
   meterFloorRef.current = meterFloor;
+
+  const playlists = useMemo(
+    () => buildPlaylists(presets, customPlaylists),
+    [presets, customPlaylists],
+  );
+  const activePlaylist =
+    playlists.find(playlist => playlist.id === activePlaylistId) ??
+    playlists.find(playlist => playlist.id === DEFAULT_PLAYLIST_ID) ??
+    playlists[0];
+  const presetById = useMemo(
+    () => new Map(presets.map(preset => [preset.id, preset])),
+    [presets],
+  );
+  const activePresets = useMemo(
+    () =>
+      (activePlaylist?.presetIds ?? [])
+        .map(id => presetById.get(id))
+        .filter((preset): preset is Preset => Boolean(preset)),
+    [activePlaylist, presetById],
+  );
 
   useEffect(() => {
     void source
@@ -142,18 +208,21 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     void visualizer.listDisplays().then(nextDisplays => {
       if (!active) return;
       setDisplays(nextDisplays);
-      const primaryIndex = Math.max(
-        0,
-        nextDisplays.findIndex(display => display.isPrimary),
+      const savedIndex = nextDisplays.findIndex(
+        display => display.id === initialSettings.selectedDisplayId,
       );
-      setSelectedDisplayIndex(primaryIndex);
-      const primaryDisplay = nextDisplays[primaryIndex];
-      if (primaryDisplay) void visualizer.setFullscreen(false, primaryDisplay);
+      const selectedIndex =
+        savedIndex >= 0
+          ? savedIndex
+          : Math.max(0, nextDisplays.findIndex(display => display.isPrimary));
+      setSelectedDisplayIndex(selectedIndex);
+      const selectedDisplay = nextDisplays[selectedIndex];
+      if (selectedDisplay) void visualizer.setFullscreen(false, selectedDisplay);
     });
     return () => {
       active = false;
     };
-  }, [visualizer]);
+  }, [initialSettings.selectedDisplayId, visualizer]);
 
   useEffect(() => {
     if (info?.deviceId) void visualizer.selectAudioDevice(info.deviceId, info.deviceName);
@@ -166,6 +235,52 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     [visualizer],
   );
 
+  useEffect(() => {
+    if (activePlaylist?.id !== activePlaylistId && activePlaylist) {
+      setActivePlaylistId(activePlaylist.id);
+    }
+  }, [activePlaylist, activePlaylistId]);
+
+  useEffect(() => {
+    const selectedDisplay = displays[selectedDisplayIndex];
+    void saveSettings({
+      version: 1,
+      ...(info?.deviceId || options.deviceId
+        ? {deviceId: info?.deviceId ?? options.deviceId}
+        : {}),
+      smoothing,
+      meterFloor,
+      showHistory,
+      visualizerSettings,
+      ...(selectedDisplay || initialSettings.selectedDisplayId
+        ? {selectedDisplayId: selectedDisplay?.id ?? initialSettings.selectedDisplayId}
+        : {}),
+      selectedPlaylistId: activePlaylist?.id ?? DEFAULT_PLAYLIST_ID,
+      presetTagFilter,
+      customPlaylists,
+    })
+      .then(() => setSettingsError(undefined))
+      .catch(error =>
+        setSettingsError(
+          `Sauvegarde impossible: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+  }, [
+    activePlaylist?.id,
+    customPlaylists,
+    displays,
+    info?.deviceId,
+    initialSettings.selectedDisplayId,
+    meterFloor,
+    options.deviceId,
+    presetTagFilter,
+    saveSettings,
+    selectedDisplayIndex,
+    showHistory,
+    smoothing,
+    visualizerSettings,
+  ]);
+
   const filteredPresets = useMemo(() => {
     const normalizedQuery = presetQuery.trim().toLocaleLowerCase();
     return presets.filter(
@@ -176,6 +291,25 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     );
   }, [presets, presetQuery, presetTagFilter]);
 
+  const detailPlaylist = playlists.find(playlist => playlist.id === detailPlaylistId);
+  const detailPresets = useMemo(
+    () =>
+      (detailPlaylist?.presetIds ?? [])
+        .map(id => presetById.get(id))
+        .filter((preset): preset is Preset => Boolean(preset)),
+    [detailPlaylist, presetById],
+  );
+  const filteredCatalogPresets = useMemo(() => {
+    const normalizedQuery = playlistCatalogQuery.trim().toLocaleLowerCase();
+    return presets.filter(
+      preset =>
+        (playlistCatalogTagFilter === 'all' ||
+          preset.tags.includes(playlistCatalogTagFilter)) &&
+        (normalizedQuery.length === 0 ||
+          preset.relativePath.toLocaleLowerCase().includes(normalizedQuery)),
+    );
+  }, [playlistCatalogQuery, playlistCatalogTagFilter, presets]);
+
   const showPreset = (preset: Preset): void => {
     setCurrentPreset(preset);
     setPanel('none');
@@ -183,15 +317,15 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
   };
 
   const cyclePreset = (direction: 1 | -1): void => {
-    if (presets.length === 0) return;
-    const currentIndex = presets.findIndex(preset => preset.id === currentPreset?.id);
+    if (activePresets.length === 0) return;
+    const currentIndex = activePresets.findIndex(preset => preset.id === currentPreset?.id);
     const targetIndex =
       currentIndex < 0
         ? direction === 1
           ? 0
-          : presets.length - 1
-        : (currentIndex + direction + presets.length) % presets.length;
-    const preset = presets[targetIndex];
+          : activePresets.length - 1
+        : (currentIndex + direction + activePresets.length) % activePresets.length;
+    const preset = activePresets[targetIndex];
     if (preset) showPreset(preset);
   };
 
@@ -272,7 +406,243 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     }
   };
 
+  const openPlaylistManager = (): void => {
+    setPlaylistIndex(
+      Math.max(0, playlists.findIndex(playlist => playlist.id === activePlaylist?.id)),
+    );
+    setPlaylistDialog({type: 'browse'});
+    setPanel('playlists');
+  };
+
+  const openPlaylistDetail = (playlist: Playlist): void => {
+    setDetailPlaylistId(playlist.id);
+    setPlaylistDetailMode('contents');
+    setPlaylistDetailIndex(0);
+    setPlaylistCatalogQuery('');
+    setPlaylistCatalogTagFilter('all');
+    setPlaylistCatalogIndex(0);
+    setPanel('playlist-detail');
+  };
+
+  const confirmPlaylistName = (): void => {
+    if (playlistDialog.type !== 'name') return;
+    const rawName = playlistDialog.value.trim();
+    if (!rawName) return;
+
+    if (playlistDialog.operation === 'rename') {
+      const playlistId = playlistDialog.sourceIds[0];
+      if (!playlistId) return;
+      const name = uniquePlaylistName(
+        rawName,
+        playlists.filter(playlist => playlist.id !== playlistId),
+      );
+      setCustomPlaylists(current =>
+        current.map(playlist => playlist.id === playlistId ? {...playlist, name} : playlist),
+      );
+      setPlaylistDialog({type: 'browse'});
+      return;
+    }
+
+    const sources = playlistDialog.sourceIds
+      .map(id => playlists.find(playlist => playlist.id === id))
+      .filter((playlist): playlist is Playlist => Boolean(playlist));
+    const presetIds =
+      playlistDialog.operation === 'merge' && sources.length >= 2
+        ? mergePresetIds(...sources)
+        : sources[0]?.presetIds ?? [];
+    const playlist = createCustomPlaylist(
+      uniquePlaylistName(rawName, playlists),
+      presetIds,
+    );
+    setCustomPlaylists(current => [...current, playlist]);
+    setActivePlaylistId(playlist.id);
+    setPlaylistIndex(playlists.length);
+    setPresetTagFilter('all');
+    setPlaylistDialog({type: 'browse'});
+    openPlaylistDetail({...playlist, readonly: false});
+  };
+
+  const deletePlaylist = (playlistId: string): void => {
+    setCustomPlaylists(current => current.filter(playlist => playlist.id !== playlistId));
+    if (activePlaylistId === playlistId) setActivePlaylistId(DEFAULT_PLAYLIST_ID);
+    setPlaylistIndex(index => Math.max(0, Math.min(index, playlists.length - 2)));
+    setPlaylistDialog({type: 'browse'});
+  };
+
+  const togglePresetInDetailPlaylist = (presetId: string): void => {
+    if (!detailPlaylistId || detailPlaylist?.readonly) return;
+    setCustomPlaylists(current =>
+      current.map(playlist => {
+        if (playlist.id !== detailPlaylistId) return playlist;
+        return playlist.presetIds.includes(presetId)
+          ? {...playlist, presetIds: playlist.presetIds.filter(id => id !== presetId)}
+          : {...playlist, presetIds: [...playlist.presetIds, presetId]};
+      }),
+    );
+  };
+
   useInput((input, key) => {
+    if (panel === 'playlist-detail') {
+      if (!detailPlaylist) {
+        setPanel('playlists');
+        return;
+      }
+
+      if (playlistDetailMode === 'contents') {
+        if (key.escape) {
+          setPlaylistIndex(
+            Math.max(0, playlists.findIndex(playlist => playlist.id === detailPlaylist.id)),
+          );
+          setPanel('playlists');
+        } else if (key.tab && !detailPlaylist.readonly) {
+          setPlaylistDetailMode('catalog');
+          setPlaylistCatalogIndex(0);
+        } else if (key.upArrow) {
+          setPlaylistDetailIndex(index => Math.max(0, index - 1));
+        } else if (key.downArrow) {
+          setPlaylistDetailIndex(index =>
+            Math.min(Math.max(0, detailPresets.length - 1), index + 1),
+          );
+        } else if (key.pageUp) {
+          setPlaylistDetailIndex(index => Math.max(0, index - 8));
+        } else if (key.pageDown) {
+          setPlaylistDetailIndex(index =>
+            Math.min(Math.max(0, detailPresets.length - 1), index + 8),
+          );
+        } else if (key.return) {
+          const preset = detailPresets[playlistDetailIndex];
+          if (preset) showPreset(preset);
+        } else if (input.toLowerCase() === 'a') {
+          setActivePlaylistId(detailPlaylist.id);
+          setPresetTagFilter('all');
+        } else if (input.toLowerCase() === 'x' && !detailPlaylist.readonly) {
+          const preset = detailPresets[playlistDetailIndex];
+          if (preset) {
+            togglePresetInDetailPlaylist(preset.id);
+            setPlaylistDetailIndex(index =>
+              Math.max(0, Math.min(index, detailPresets.length - 2)),
+            );
+          }
+        }
+      } else if (key.escape || key.tab) {
+        setPlaylistDetailMode('contents');
+        setPlaylistDetailIndex(0);
+      } else if (key.leftArrow || key.rightArrow) {
+        setPlaylistCatalogTagFilter(current =>
+          nextInList(PRESET_TAG_FILTERS, current, key.leftArrow ? -1 : 1),
+        );
+        setPlaylistCatalogIndex(0);
+      } else if (key.upArrow) {
+        setPlaylistCatalogIndex(index => Math.max(0, index - 1));
+      } else if (key.downArrow) {
+        setPlaylistCatalogIndex(index =>
+          Math.min(Math.max(0, filteredCatalogPresets.length - 1), index + 1),
+        );
+      } else if (key.pageUp) {
+        setPlaylistCatalogIndex(index => Math.max(0, index - 8));
+      } else if (key.pageDown) {
+        setPlaylistCatalogIndex(index =>
+          Math.min(Math.max(0, filteredCatalogPresets.length - 1), index + 8),
+        );
+      } else if (key.return) {
+        const preset = filteredCatalogPresets[playlistCatalogIndex];
+        if (preset) togglePresetInDetailPlaylist(preset.id);
+      } else if (key.backspace || key.delete) {
+        setPlaylistCatalogQuery(query => query.slice(0, -1));
+        setPlaylistCatalogIndex(0);
+      } else if (!key.ctrl && !key.meta && input && !/\p{C}/u.test(input)) {
+        setPlaylistCatalogQuery(query => query + input);
+        setPlaylistCatalogIndex(0);
+      }
+      return;
+    }
+
+    if (panel === 'playlists') {
+      const selected = playlists[playlistIndex];
+      if (playlistDialog.type === 'name') {
+        if (key.escape) setPlaylistDialog({type: 'browse'});
+        else if (key.return) confirmPlaylistName();
+        else if (key.backspace || key.delete) {
+          setPlaylistDialog(dialog =>
+            dialog.type === 'name' ? {...dialog, value: dialog.value.slice(0, -1)} : dialog,
+          );
+        } else if (!key.ctrl && !key.meta && input && !/\p{C}/u.test(input)) {
+          setPlaylistDialog(dialog =>
+            dialog.type === 'name' ? {...dialog, value: dialog.value + input} : dialog,
+          );
+        }
+        return;
+      }
+      if (playlistDialog.type === 'delete') {
+        if (input.toLowerCase() === 'y') deletePlaylist(playlistDialog.playlistId);
+        else if (key.escape || input.toLowerCase() === 'n') {
+          setPlaylistDialog({type: 'browse'});
+        }
+        return;
+      }
+      if (playlistDialog.type === 'merge') {
+        if (key.escape) setPlaylistDialog({type: 'browse'});
+        else if (key.upArrow) setPlaylistIndex(index => Math.max(0, index - 1));
+        else if (key.downArrow) {
+          setPlaylistIndex(index => Math.min(playlists.length - 1, index + 1));
+        } else if (input === ' ' && selected) {
+          setPlaylistDialog(dialog => {
+            if (dialog.type !== 'merge') return dialog;
+            const selectedIds = dialog.selectedIds.includes(selected.id)
+              ? dialog.selectedIds.filter(id => id !== selected.id)
+              : [...dialog.selectedIds, selected.id];
+            return {...dialog, selectedIds};
+          });
+        } else if (key.return && playlistDialog.selectedIds.length >= 2) {
+          const selectedPlaylists = playlistDialog.selectedIds
+            .map(id => playlists.find(playlist => playlist.id === id))
+            .filter((playlist): playlist is Playlist => Boolean(playlist));
+          setPlaylistDialog({
+            type: 'name',
+            operation: 'merge',
+            sourceIds: playlistDialog.selectedIds,
+            value:
+              selectedPlaylists.length === 2
+                ? selectedPlaylists.map(playlist => playlist.name).join(' + ')
+                : `Fusion ${selectedPlaylists.length} playlists`,
+          });
+        }
+        return;
+      }
+
+      if (key.escape || input.toLowerCase() === 'l') setPanel('none');
+      else if (key.upArrow) setPlaylistIndex(index => Math.max(0, index - 1));
+      else if (key.downArrow) {
+        setPlaylistIndex(index => Math.min(playlists.length - 1, index + 1));
+      } else if (key.return && selected) {
+        openPlaylistDetail(selected);
+      } else if (input.toLowerCase() === 'a' && selected) {
+        setActivePlaylistId(selected.id);
+        setPresetTagFilter('all');
+      } else if (input.toLowerCase() === 'n') {
+        setPlaylistDialog({type: 'name', operation: 'new', sourceIds: [], value: ''});
+      } else if (input.toLowerCase() === 'c' && selected) {
+        setPlaylistDialog({
+          type: 'name',
+          operation: 'copy',
+          sourceIds: [selected.id],
+          value: `${selected.name} (copie)`,
+        });
+      } else if (input.toLowerCase() === 'm' && selected) {
+        setPlaylistDialog({type: 'merge', selectedIds: [selected.id]});
+      } else if (input.toLowerCase() === 'r' && selected && !selected.readonly) {
+        setPlaylistDialog({
+          type: 'name',
+          operation: 'rename',
+          sourceIds: [selected.id],
+          value: selected.name,
+        });
+      } else if (input.toLowerCase() === 'd' && selected && !selected.readonly) {
+        setPlaylistDialog({type: 'delete', playlistId: selected.id});
+      }
+      return;
+    }
+
     if (panel === 'presets') {
       if (key.escape || input.toLowerCase() === 'p') {
         setPanel('none');
@@ -328,6 +698,7 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
     if (input === ' ') setPaused(current => !current);
     else if (input.toLowerCase() === 'o') setPanel('settings');
     else if (input.toLowerCase() === 'h') setPanel('help');
+    else if (input.toLowerCase() === 'l') openPlaylistManager();
     else if (input.toLowerCase() === 'p') {
       setPresetQuery('');
       const presetsForCurrentTag =
@@ -348,7 +719,8 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
         void visualizer.showPreset(currentPreset);
       } else {
         const firstVisualPreset =
-          presets.find(preset => !preset.relativePath.startsWith('! Transition')) ?? presets[0];
+          activePresets.find(preset => !preset.relativePath.startsWith('! Transition')) ??
+          activePresets[0];
         if (firstVisualPreset) showPreset(firstVisualPreset);
       }
     } else if (input.toLowerCase() === 'n') cyclePreset(1);
@@ -422,6 +794,10 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
             <Text dimColor>Preset </Text>
             {currentPreset?.name ?? 'Aucun preset sélectionné'}
           </Text>
+          <Text wrap="truncate-end">
+            <Text dimColor>Playlist </Text>
+            {activePlaylist?.name ?? 'Aucune'} · {activePresets.length} preset(s)
+          </Text>
           <Text dimColor wrap="truncate-end">
             {visualizerStatus.message}
           </Text>
@@ -431,13 +807,19 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
             ? fullscreenOutput
               ? ' PLEIN ÉCRAN'
               : ' MOTEUR ACTIF'
-            : ` ${presets.length} .MILK`}
+            : ` ${activePresets.length} .MILK`}
         </Text>
       </Box>
 
       {status.state === 'error' ? (
         <Box borderStyle="single" borderColor="red" paddingX={1} marginBottom={1}>
           <Text color="red">{status.message}</Text>
+        </Box>
+      ) : null}
+
+      {settingsError ? (
+        <Box borderStyle="single" borderColor="red" paddingX={1} marginBottom={1}>
+          <Text color="red">{settingsError}</Text>
         </Box>
       ) : null}
 
@@ -454,6 +836,30 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
           visualizerSettings={visualizerSettings}
           selectedRow={selectedRow}
         />
+      ) : panel === 'playlists' ? (
+        <PlaylistPanel
+          playlists={playlists}
+          activePlaylistId={activePlaylist?.id ?? ''}
+          selectedIndex={playlistIndex}
+          dialog={playlistDialog}
+        />
+      ) : panel === 'playlist-detail' && detailPlaylist ? (
+        <PlaylistDetailPanel
+          playlist={detailPlaylist}
+          presets={
+            playlistDetailMode === 'contents' ? detailPresets : filteredCatalogPresets
+          }
+          mode={playlistDetailMode}
+          query={playlistCatalogQuery}
+          tagFilter={playlistCatalogTagFilter}
+          selectedIndex={
+            playlistDetailMode === 'contents'
+              ? playlistDetailIndex
+              : playlistCatalogIndex
+          }
+          currentPresetId={currentPreset?.id}
+          active={detailPlaylist.id === activePlaylist?.id}
+        />
       ) : panel === 'help' ? (
         <HelpPanel />
       ) : panel === 'presets' ? (
@@ -465,9 +871,21 @@ export function App({source, options, presets, visualizer}: AppProps): React.JSX
           tagFilter={presetTagFilter}
         />
       ) : (
-        <Box justifyContent="space-between">
-          <Text dimColor>P presets · N/B changer · V moteur · F plein écran · O options · Q quitter</Text>
-          <Text dimColor>{SMOOTHING_PROFILES[smoothing].label} · {meterFloor} dB</Text>
+        <Box flexDirection="column">
+          <QueuePanel
+            playlist={activePlaylist}
+            presets={activePresets}
+            currentPreset={currentPreset}
+          />
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor wrap="truncate-end">
+              L playlists · P presets · N/B changer · V moteur · F plein écran
+            </Text>
+            <Box justifyContent="space-between">
+              <Text dimColor>O options · H aide · Q quitter</Text>
+              <Text dimColor>{SMOOTHING_PROFILES[smoothing].label} · {meterFloor} dB</Text>
+            </Box>
+          </Box>
         </Box>
       )}
     </Box>

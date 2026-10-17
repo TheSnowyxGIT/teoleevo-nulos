@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {parseCli} from '../src/cli-options.js';
+import {DEFAULT_OPTIONS} from '../src/config.js';
 
 test('parseCli uses production defaults', () => {
   const parsed = parseCli([]);
@@ -57,6 +58,27 @@ test('parseCli accepts supported analysis options', () => {
       speed: 0.05,
       audioGain: 0.5,
     },
+  });
+});
+
+test('parseCli keeps persisted defaults and lets explicit flags override them', () => {
+  const parsed = parseCli(['--visual-fps', '24'], {
+    ...DEFAULT_OPTIONS,
+    deviceId: 'saved-speakers',
+    meterFloor: -60,
+    visualizerSettings: {
+      frameRate: 90,
+      speed: 0.05,
+      audioGain: 0.5,
+    },
+  });
+
+  assert.equal(parsed.options.deviceId, 'saved-speakers');
+  assert.equal(parsed.options.meterFloor, -60);
+  assert.deepEqual(parsed.options.visualizerSettings, {
+    frameRate: 24,
+    speed: 0.05,
+    audioGain: 0.5,
   });
 });
 

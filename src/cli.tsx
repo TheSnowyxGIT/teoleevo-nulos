@@ -8,12 +8,18 @@ import {
   inferTextureDirectory,
   scanPresets,
 } from './presets/catalog.js';
+import {optionsFromSettings, SettingsStore} from './persistence/settings-store.js';
 import {App} from './ui/app.js';
 import {createVisualizer} from './visualizer/create-visualizer.js';
 
 async function main(): Promise<void> {
   try {
-    const {options, help} = parseCli(process.argv.slice(2));
+    const settingsStore = new SettingsStore();
+    const initialSettings = await settingsStore.load();
+    const {options, help} = parseCli(
+      process.argv.slice(2),
+      optionsFromSettings(initialSettings),
+    );
     if (help) {
       process.stdout.write(HELP_TEXT.trimStart());
       return;
@@ -33,7 +39,14 @@ async function main(): Promise<void> {
     const source = createCapture(options);
     const visualizer = createVisualizer(options);
     const instance = render(
-      <App source={source} options={options} presets={presets} visualizer={visualizer} />,
+      <App
+        source={source}
+        options={options}
+        presets={presets}
+        visualizer={visualizer}
+        initialSettings={initialSettings}
+        saveSettings={settings => settingsStore.save(settings)}
+      />,
     );
     await instance.waitUntilExit();
   } catch (error) {
