@@ -4,11 +4,17 @@ import path from 'node:path';
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
 import {isWsl, toLocalPath, toWindowsPath} from '../platform.js';
-import type {Preset, VisualizerController, VisualizerStatus} from '../types.js';
+import type {
+  Preset,
+  VisualizerController,
+  VisualizerSettings,
+  VisualizerStatus,
+} from '../types.js';
 
 interface ProjectMOptions {
   rendererPath?: string;
   textureDirectory?: string;
+  settings: VisualizerSettings;
 }
 
 interface RendererCommand {
@@ -20,6 +26,7 @@ type RendererMessage =
   | {type: 'ready'; deviceId: string; deviceName: string; presetPath: string}
   | {type: 'preset'; path: string}
   | {type: 'device'; deviceId: string; deviceName: string}
+  | ({type: 'settings'} & VisualizerSettings)
   | {type: 'error'; message: string};
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -67,6 +74,11 @@ export function rendererArguments(
   preset: Preset,
   textureDirectories: string[],
   deviceId?: string,
+  settings: VisualizerSettings = {
+    frameRate: 30,
+    speed: 1.07175,
+    audioGain: 1,
+  },
 ): string[] {
   const hostPath = (value: string): string =>
     process.platform === 'win32' || isWsl ? toWindowsPath(value) : value;
@@ -79,6 +91,12 @@ export function rendererArguments(
     '1280',
     '--height',
     '720',
+    '--fps',
+    String(settings.frameRate),
+    '--speed',
+    String(settings.speed),
+    '--audio-gain',
+    String(settings.audioGain),
   ];
   for (const directory of textureDirectories) {
     args.push('--texture', hostPath(directory));
@@ -123,8 +141,10 @@ export class ProjectMVisualizer implements VisualizerController {
   private currentPreset?: Preset;
   private deviceId?: string;
   private deviceName?: string;
+  private settings: VisualizerSettings;
 
   constructor(private readonly options: ProjectMOptions) {
+    this.settings = {...options.settings};
     this.helper = findVisualizerHelper(options.rendererPath);
     this.runtime = findProjectMRuntime();
     this.status =
@@ -145,12 +165,17 @@ export class ProjectMVisualizer implements VisualizerController {
     };
   }
 
-  async selectAudioDevice(deviceId: string): Promise<void> {
+  async selectAudioDevice(deviceId: string, _deviceName?: string): Promise<void> {
     if (deviceId === this.deviceId) return;
     this.deviceId = deviceId;
     if (this.child) {
       this.send({type: 'device', deviceId});
     }
+  }
+
+  async configure(settings: VisualizerSettings): Promise<void> {
+    this.settings = {...settings};
+    if (this.child) this.send({type: 'settings', ...settings});
   }
 
   async showPreset(preset: Preset): Promise<void> {
@@ -174,7 +199,13 @@ export class ProjectMVisualizer implements VisualizerController {
     ].filter((directory): directory is string => Boolean(directory));
     const command = helperCommand(
       this.helper,
-      rendererArguments(this.runtime, preset, textureDirectories, this.deviceId),
+      rendererArguments(
+        this.runtime,
+        preset,
+        textureDirectories,
+        this.deviceId,
+        this.settings,
+      ),
     );
     const child = spawn(command.command, command.args, {
       cwd: projectRoot,
@@ -265,6 +296,14 @@ export class ProjectMVisualizer implements VisualizerController {
         this.deviceName = message.deviceName;
         this.markRunning();
         break;
+      case 'settings':
+        this.settings = {
+          frameRate: message.frameRate,
+          speed: message.speed,
+          audioGain: message.audioGain,
+        };
+        this.markRunning();
+        break;
       case 'error':
         this.update({state: 'error', message: message.message});
         break;
@@ -275,7 +314,7 @@ export class ProjectMVisualizer implements VisualizerController {
     if (!this.currentPreset) return;
     this.update({
       state: 'running',
-      message: `projectM · ${this.deviceName ?? 'WASAPI'}`,
+      message: `projectM · ${this.deviceName ?? 'WASAPI'} · vitesse ${this.settings.speed.toLocaleString('fr-FR')}× · volume ${this.settings.audioGain.toLocaleString('fr-FR')}× · ${this.settings.frameRate} FPS`,
       preset: this.currentPreset,
     });
   }

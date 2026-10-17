@@ -10,16 +10,26 @@ internal sealed class RendererWindow : IDisposable
     private readonly CancellationTokenSource _cancellation = new();
     private IntPtr _window;
     private IntPtr _glContext;
+    private string _currentPresetPath;
+    private int _frameRate;
 
     public RendererWindow(Options options)
     {
         _options = options;
+        _currentPresetPath = options.PresetPath;
+        _frameRate = options.FrameRate;
     }
 
     public void Run()
     {
         InitializeWindow();
-        using var engine = new ProjectMEngine(_options.TextureDirectories, _options.Width, _options.Height);
+        using var engine = new ProjectMEngine(
+            _options.TextureDirectories,
+            _options.Width,
+            _options.Height,
+            _options.FrameRate,
+            _options.Speed,
+            _options.AudioGain);
         using var audio = new AudioLoopback();
         audio.SelectDevice(_options.DeviceId);
         engine.LoadPreset(_options.PresetPath, false);
@@ -60,9 +70,11 @@ internal sealed class RendererWindow : IDisposable
             engine.Render();
             NativeMethods.SDL_GL_SwapWindow(_window);
 
-            if (clock.ElapsedMilliseconds < 8)
+            var targetFrameMilliseconds = 1_000.0 / _frameRate;
+            var remainingMilliseconds = targetFrameMilliseconds - clock.Elapsed.TotalMilliseconds;
+            if (remainingMilliseconds > 1)
             {
-                Thread.Sleep(1);
+                Thread.Sleep((int)Math.Floor(remainingMilliseconds));
             }
             clock.Restart();
         }
@@ -143,7 +155,8 @@ internal sealed class RendererWindow : IDisposable
                     var line = await Console.In.ReadLineAsync(_cancellation.Token);
                     if (line is null)
                     {
-                        _commands.Enqueue(new RendererCommand("quit", null, null, false));
+                        _commands.Enqueue(new RendererCommand(
+                            "quit", null, null, false, null, null, null));
                         return;
                     }
                     try
@@ -172,6 +185,7 @@ internal sealed class RendererWindow : IDisposable
                 {
                     case "preset" when command.Path is not null:
                         engine.LoadPreset(command.Path, command.Smooth);
+                        _currentPresetPath = Path.GetFullPath(command.Path);
                         UpdateTitle(command.Path);
                         Protocol.Write(new { type = "preset", path = Path.GetFullPath(command.Path) });
                         break;
@@ -182,6 +196,26 @@ internal sealed class RendererWindow : IDisposable
                             type = "device",
                             deviceId = audio.DeviceId,
                             deviceName = audio.DeviceName,
+                        });
+                        break;
+                    case "settings" when command.FrameRate is not null &&
+                                              command.Speed is not null &&
+                                              command.AudioGain is not null:
+                        var presetNeedsReload = engine.Configure(
+                            command.FrameRate.Value,
+                            command.Speed.Value,
+                            command.AudioGain.Value);
+                        _frameRate = command.FrameRate.Value;
+                        if (presetNeedsReload)
+                        {
+                            engine.LoadPreset(_currentPresetPath, false);
+                        }
+                        Protocol.Write(new
+                        {
+                            type = "settings",
+                            frameRate = command.FrameRate.Value,
+                            speed = command.Speed.Value,
+                            audioGain = command.AudioGain.Value,
                         });
                         break;
                     case "quit":

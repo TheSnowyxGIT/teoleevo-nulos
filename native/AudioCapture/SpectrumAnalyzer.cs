@@ -2,7 +2,17 @@ using System.Runtime.InteropServices;
 
 namespace Teoleevo.AudioCapture;
 
-internal sealed record BandSnapshot(double BassDb, double MidsDb, double TrebleDb, long UpdatedAt);
+internal sealed record SpectrumSnapshot(
+    double BassDb,
+    double MidsDb,
+    double TrebleDb,
+    double LoudnessDb,
+    double SubBassDb,
+    double LowMidDb,
+    double HighMidDb,
+    double SpectralCentroid,
+    double SpectralFlux,
+    long UpdatedAt);
 
 internal sealed class SpectrumAnalyzer
 {
@@ -16,11 +26,13 @@ internal sealed class SpectrumAnalyzer
     private readonly double[] window;
     private readonly double[] real;
     private readonly double[] imaginary;
+    private readonly double[] previousMagnitudes;
     private readonly double windowEnergy;
     private int writeIndex;
     private int availableSamples;
     private int samplesSinceAnalysis;
-    private BandSnapshot latest = new(-120, -120, -120, 0);
+    private SpectrumSnapshot latest = new(
+        -120, -120, -120, -120, -120, -120, -120, 0, 0, 0);
 
     public SpectrumAnalyzer(int sampleRate, int channels, int fftSize)
     {
@@ -31,6 +43,7 @@ internal sealed class SpectrumAnalyzer
         ring = new float[fftSize];
         real = new double[fftSize];
         imaginary = new double[fftSize];
+        previousMagnitudes = new double[fftSize / 2 + 1];
         window = new double[fftSize];
 
         double energy = 0;
@@ -71,7 +84,7 @@ internal sealed class SpectrumAnalyzer
         }
     }
 
-    public BandSnapshot Snapshot()
+    public SpectrumSnapshot Snapshot()
     {
         lock (gate)
         {
@@ -88,12 +101,56 @@ internal sealed class SpectrumAnalyzer
             imaginary[index] = 0;
         }
 
+        var loudnessDb = RmsDb();
         Fft.Transform(real, imaginary);
-        latest = new BandSnapshot(
+        var (centroid, flux) = SpectralShape();
+        latest = new SpectrumSnapshot(
             BandDb(20, 250),
             BandDb(250, 4_000),
             BandDb(4_000, Math.Min(16_000, sampleRate / 2)),
+            loudnessDb,
+            BandDb(20, 90),
+            BandDb(250, 2_000),
+            BandDb(2_000, 8_000),
+            centroid,
+            flux,
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    }
+
+    private double RmsDb()
+    {
+        double squared = 0;
+        for (var index = 0; index < fftSize; index++)
+        {
+            var sample = ring[index];
+            squared += sample * sample;
+        }
+
+        return Math.Clamp(
+            10 * Math.Log10(Math.Max(MinimumPower, squared / fftSize)),
+            -120,
+            0);
+    }
+
+    private (double Centroid, double Flux) SpectralShape()
+    {
+        double weightedFrequency = 0;
+        double magnitudeSum = 0;
+        double positiveFlux = 0;
+
+        for (var bin = 1; bin <= fftSize / 2; bin++)
+        {
+            var magnitude = Math.Sqrt(real[bin] * real[bin] + imaginary[bin] * imaginary[bin]);
+            var frequency = (double)bin * sampleRate / fftSize;
+            magnitudeSum += magnitude;
+            weightedFrequency += frequency * magnitude;
+            positiveFlux += Math.Max(0, magnitude - previousMagnitudes[bin]);
+            previousMagnitudes[bin] = magnitude;
+        }
+
+        var centroid = magnitudeSum > 0 ? weightedFrequency / magnitudeSum : 0;
+        var flux = magnitudeSum > 0 ? positiveFlux / magnitudeSum : 0;
+        return (centroid, Math.Clamp(flux, 0, 1));
     }
 
     private double BandDb(double minimumFrequency, double maximumFrequency)

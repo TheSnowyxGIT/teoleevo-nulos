@@ -3,6 +3,7 @@ import {readdir} from 'node:fs/promises';
 import path from 'node:path';
 import {isWsl, toLocalPath} from '../platform.js';
 import type {Preset} from '../types.js';
+import {tagsForPresetName} from './tags.js';
 
 const NESTDROP_PRESET_SUFFIX = path.join(
   'Downloads',
@@ -57,11 +58,13 @@ export async function scanPresets(directory: string): Promise<Preset[]> {
           await visit(absolutePath);
         } else if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.milk') {
           const relativePath = path.relative(root, absolutePath);
+          const name = path.basename(entry.name, path.extname(entry.name));
           presets.push({
             id: relativePath,
-            name: path.basename(entry.name, path.extname(entry.name)),
+            name,
             path: absolutePath,
             relativePath,
+            tags: tagsForPresetName(name),
           });
         }
       }),

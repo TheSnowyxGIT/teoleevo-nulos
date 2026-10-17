@@ -2,12 +2,18 @@ import React from 'react';
 import {Box, Text} from 'ink';
 import path from 'node:path';
 import type {Preset} from '../types.js';
+import {
+  PRESET_TAG_FILTERS,
+  PRESET_TAG_LABELS,
+  type PresetTagFilter,
+} from '../presets/tags.js';
 
 interface PresetPanelProps {
   presets: Preset[];
   query: string;
   selectedIndex: number;
   currentPreset?: Preset;
+  tagFilter: PresetTagFilter;
 }
 
 const VISIBLE_ROWS = 9;
@@ -21,6 +27,7 @@ export function PresetPanel({
   query,
   selectedIndex,
   currentPreset,
+  tagFilter,
 }: PresetPanelProps): React.JSX.Element {
   const firstRow = Math.max(
     0,
@@ -43,7 +50,15 @@ export function PresetPanel({
         <Text dimColor>Recherche </Text>
         <Text color="cyan">{query || 'tapez pour filtrer…'}</Text>
       </Text>
-      <Text dimColor>↑/↓ choisir · Entrée ouvrir · Retour effacer · Échap fermer</Text>
+      <Box>
+        <Text dimColor>Tags </Text>
+        {PRESET_TAG_FILTERS.map(tag => (
+          <Text key={tag} color={tag === tagFilter ? 'yellow' : 'gray'} bold={tag === tagFilter}>
+            {tag === tagFilter ? `[${PRESET_TAG_LABELS[tag]}] ` : `${PRESET_TAG_LABELS[tag]} `}
+          </Text>
+        ))}
+      </Box>
+      <Text dimColor>Tab changer le tag · ↑/↓ choisir · Entrée ouvrir · Retour effacer · Échap fermer</Text>
       <Box height={1} />
       {presets.length === 0 ? (
         <Text color="yellow">
@@ -64,7 +79,10 @@ export function PresetPanel({
                 <Text color="green">{active ? '●' : ' '}</Text>
               </Box>
               <Text bold={selected} color={selected ? 'cyan' : undefined}>
-                {truncate(preset.name, 62)}
+                {truncate(preset.name, 50)}
+              </Text>
+              <Text color={preset.tags.includes('drop') ? 'red' : preset.tags.includes('build-up') ? 'yellow' : preset.tags.includes('verse') ? 'blue' : 'gray'}>
+                {' '}[{preset.tags.map(tag => PRESET_TAG_LABELS[tag]).join(', ')}]
               </Text>
               {folder !== '.' ? <Text dimColor> · {truncate(folder, 28)}</Text> : null}
             </Box>

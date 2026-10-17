@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {scanPresets} from '../src/presets/catalog.js';
+import {tagsForPresetName} from '../src/presets/tags.js';
 
 test('scanPresets finds .milk files recursively and sorts them', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'teoleevo-presets-'));
@@ -21,9 +22,19 @@ test('scanPresets finds .milk files recursively and sorts them', async () => {
       [path.join('Nested', 'Alpha.MILK'), 'zeta.milk'],
     );
     assert.equal(presets[0]?.name, 'Alpha');
+    assert.deepEqual(presets[0]?.tags, ['other']);
   } finally {
     await rm(directory, {recursive: true, force: true});
   }
+});
+
+test('curated presets can belong to several music sections', () => {
+  assert.deepEqual(tagsForPresetName('101'), ['build-up', 'drop']);
+  assert.deepEqual(tagsForPresetName('cortex meat - mighty mend-it'), [
+    'drop',
+    'verse',
+  ]);
+  assert.deepEqual(tagsForPresetName('unlisted preset'), ['other']);
 });
 
 test('scanPresets explains a missing directory', async () => {

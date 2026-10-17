@@ -4,7 +4,9 @@ import {fileURLToPath} from 'node:url';
 import {createInterface} from 'node:readline';
 import path from 'node:path';
 import {isWsl, toLocalPath} from '../platform.js';
+import {BeatNetTracker} from './beatnet-tracker.js';
 import type {
+  AudioFeatures,
   AudioDevice,
   CaptureEvents,
   CaptureInfo,
@@ -17,12 +19,20 @@ interface WindowsCaptureOptions {
   fftSize: number;
   fps: number;
   helperPath?: string;
+  beatNet: boolean;
 }
 
 type HelperMessage =
   | {type: 'devices'; devices: AudioDevice[]}
   | ({type: 'ready'} & CaptureInfo)
-  | ({type: 'frame'} & SpectrumFrame)
+  | {
+      type: 'frame';
+      timestamp: number;
+      db: SpectrumFrame['db'];
+      features: AudioFeatures;
+      hasSignal: boolean;
+    }
+  | {type: 'beatnetPcm'; data: string}
   | {type: 'error'; message: string};
 
 interface HelperCommand {
@@ -115,9 +125,11 @@ export class WindowsCapture implements CaptureSource {
   private active = false;
   private changingDevice = false;
   private deviceId?: string;
+  private readonly beatNet: BeatNetTracker;
 
   constructor(private readonly options: WindowsCaptureOptions) {
     this.deviceId = options.deviceId;
+    this.beatNet = new BeatNetTracker(options.beatNet);
   }
 
   async start(events: CaptureEvents): Promise<void> {
@@ -129,6 +141,7 @@ export class WindowsCapture implements CaptureSource {
 
     this.events = events;
     this.active = true;
+    await this.beatNet.start(events.onRhythm);
     await this.launch();
   }
 
@@ -138,6 +151,7 @@ export class WindowsCapture implements CaptureSource {
     this.deviceId = deviceId;
     this.events?.onStatus({state: 'starting', message: 'Changement de sortie audio…'});
     await this.stopProcess();
+    await this.beatNet.restart();
     this.changingDevice = false;
     await this.launch();
   }
@@ -145,6 +159,7 @@ export class WindowsCapture implements CaptureSource {
   async stop(): Promise<void> {
     this.active = false;
     await this.stopProcess();
+    await this.beatNet.stop();
     this.events?.onStatus({state: 'stopped', message: 'Capture arrêtée'});
   }
 
@@ -161,6 +176,7 @@ export class WindowsCapture implements CaptureSource {
       String(this.options.fps),
     ];
     if (this.deviceId) helperArguments.push('--device-id', this.deviceId);
+    if (this.beatNet.canReceivePcm) helperArguments.push('--beatnet-pcm');
 
     let command: HelperCommand;
     try {
@@ -219,6 +235,7 @@ export class WindowsCapture implements CaptureSource {
       if (this.child === child) this.child = undefined;
       if (!this.active || this.changingDevice) return;
       const details = stderr.filter(Boolean).join(' ');
+      void this.beatNet.stop();
       events.onStatus({
         state: 'error',
         message: details || `Le helper audio s’est arrêté (code ${code ?? 'inconnu'}).`,
@@ -246,8 +263,12 @@ export class WindowsCapture implements CaptureSource {
         this.events?.onFrame({
           timestamp: message.timestamp,
           db: message.db,
+          features: message.features,
           hasSignal: message.hasSignal,
         });
+        break;
+      case 'beatnetPcm':
+        this.beatNet.push(message.data);
         break;
       case 'error':
         this.events?.onStatus({state: 'error', message: message.message});

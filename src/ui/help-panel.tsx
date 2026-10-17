@@ -17,6 +17,9 @@ export function HelpPanel(): React.JSX.Element {
         <Text bold>P</Text> Chercher et ouvrir un preset MilkDrop
       </Text>
       <Text>
+        <Text bold>Tab</Text> Filtrer les presets par build-up, drop, verse ou other
+      </Text>
+      <Text>
         <Text bold>V</Text> Ouvrir / fermer la fenêtre de visualisation
       </Text>
       <Text>
@@ -27,6 +30,9 @@ export function HelpPanel(): React.JSX.Element {
       </Text>
       <Text>
         <Text bold>S</Text> Changer la réactivité des vumètres
+      </Text>
+      <Text>
+        <Text bold>A</Text> Activer / désactiver le changement sur drop
       </Text>
       <Text>
         <Text bold>H</Text> Fermer cette aide

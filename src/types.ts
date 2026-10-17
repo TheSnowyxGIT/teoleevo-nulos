@@ -2,6 +2,52 @@ export type BandName = 'bass' | 'mids' | 'treble';
 
 export type BandValues = Record<BandName, number>;
 
+export interface AudioFeatures {
+  loudnessDb: number;
+  subBassDb: number;
+  lowMidDb: number;
+  highMidDb: number;
+  spectralCentroid: number;
+  spectralFlux: number;
+}
+
+export type RhythmStatus = {
+  state: 'disabled' | 'unavailable' | 'starting' | 'running' | 'error';
+  message: string;
+  bpm?: number;
+  beatPosition?: number;
+  meter?: number;
+  beatActivation: number;
+  downbeatActivation: number;
+  latencyMs?: number;
+  pulse: boolean;
+  downbeat: boolean;
+};
+
+export type MusicEventState =
+  | 'waiting'
+  | 'learning'
+  | 'neutral'
+  | 'build-up'
+  | 'drop'
+  | 'breakdown';
+
+export interface MusicEventAnalysis {
+  state: MusicEventState;
+  message: string;
+  confidence: number;
+  dropTriggered: boolean;
+  dropTimestamp?: number;
+  barsObserved: number;
+  metrics: {
+    drop: number;
+    impact: number;
+    bassReturn: number;
+    buildUp: number;
+    novelty: number;
+  };
+}
+
 export interface AudioDevice {
   id: string;
   name: string;
@@ -11,6 +57,7 @@ export interface AudioDevice {
 export interface SpectrumFrame {
   timestamp: number;
   db: BandValues;
+  features: AudioFeatures;
   hasSignal: boolean;
 }
 
@@ -31,6 +78,7 @@ export type CaptureStatus =
 export interface CaptureEvents {
   onDevices(devices: AudioDevice[]): void;
   onFrame(frame: SpectrumFrame): void;
+  onRhythm(status: RhythmStatus): void;
   onInfo(info: CaptureInfo): void;
   onStatus(status: CaptureStatus): void;
 }
@@ -44,6 +92,12 @@ export interface CaptureSource {
 
 export type SmoothingProfile = 'fast' | 'balanced' | 'smooth';
 
+export interface VisualizerSettings {
+  frameRate: number;
+  speed: number;
+  audioGain: number;
+}
+
 export interface AppOptions {
   demo: boolean;
   deviceId?: string;
@@ -54,6 +108,10 @@ export interface AppOptions {
   presetDirectory?: string;
   textureDirectory?: string;
   rendererPath?: string;
+  nestDropRendererPath?: string;
+  beatNet: boolean;
+  autoDropPresets: boolean;
+  visualizerSettings: VisualizerSettings;
 }
 
 export interface Preset {
@@ -61,7 +119,10 @@ export interface Preset {
   name: string;
   path: string;
   relativePath: string;
+  tags: PresetTag[];
 }
+
+export type PresetTag = 'build-up' | 'drop' | 'verse' | 'other';
 
 export type VisualizerStatus =
   | {state: 'stopped'; message: string}
@@ -73,7 +134,8 @@ export type VisualizerStatus =
 export interface VisualizerController {
   readonly initialStatus: VisualizerStatus;
   subscribe(listener: (status: VisualizerStatus) => void): () => void;
-  selectAudioDevice(deviceId: string): Promise<void>;
+  selectAudioDevice(deviceId: string, deviceName?: string): Promise<void>;
+  configure(settings: VisualizerSettings): Promise<void>;
   showPreset(preset: Preset): Promise<void>;
   stop(): Promise<void>;
 }

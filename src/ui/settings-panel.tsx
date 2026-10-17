@@ -1,7 +1,7 @@
 import React from 'react';
 import {Box, Text} from 'ink';
 import {SMOOTHING_PROFILES} from '../config.js';
-import type {AudioDevice, SmoothingProfile} from '../types.js';
+import type {AudioDevice, SmoothingProfile, VisualizerSettings} from '../types.js';
 
 interface SettingsPanelProps {
   devices: AudioDevice[];
@@ -9,6 +9,8 @@ interface SettingsPanelProps {
   smoothing: SmoothingProfile;
   meterFloor: number;
   showHistory: boolean;
+  autoDropPresets: boolean;
+  visualizerSettings: VisualizerSettings;
   selectedRow: number;
 }
 
@@ -40,6 +42,8 @@ export function SettingsPanel({
   smoothing,
   meterFloor,
   showHistory,
+  autoDropPresets,
+  visualizerSettings,
   selectedRow,
 }: SettingsPanelProps): React.JSX.Element {
   const selectedDevice = devices.find(device => device.id === selectedDeviceId);
@@ -70,6 +74,26 @@ export function SettingsPanel({
         active={selectedRow === 3}
         label="Historique"
         value={showHistory ? 'Visible' : 'Masqué'}
+      />
+      <Row
+        active={selectedRow === 4}
+        label="FPS / fluidité"
+        value={`${visualizerSettings.frameRate} FPS`}
+      />
+      <Row
+        active={selectedRow === 5}
+        label="Vitesse globale"
+        value={`${visualizerSettings.speed.toLocaleString('fr-FR')}×`}
+      />
+      <Row
+        active={selectedRow === 6}
+        label="Volume visuel"
+        value={`${visualizerSettings.audioGain.toLocaleString('fr-FR')}×`}
+      />
+      <Row
+        active={selectedRow === 7}
+        label="Preset sur drop"
+        value={autoDropPresets ? 'Activé' : 'Désactivé'}
       />
     </Box>
   );

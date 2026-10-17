@@ -31,6 +31,7 @@ try
     const int channels = 2;
     var format = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels);
     var analyzer = new SpectrumAnalyzer(sampleRate, channels, options.FftSize);
+    var beatNetResampler = options.BeatNetPcm ? new BeatNetPcmResampler() : null;
     // Declared before the recorder so it is disposed after the recorder's
     // RecordingStopped event has finished (using declarations unwind in reverse).
     using var cancellation = new CancellationTokenSource();
@@ -45,7 +46,15 @@ try
     };
 
     recorder.DataAvailable += (_, eventArgs) =>
-        analyzer.Add(eventArgs.Buffer.AsSpan(0, eventArgs.BytesRecorded));
+    {
+        var buffer = eventArgs.Buffer.AsSpan(0, eventArgs.BytesRecorded);
+        analyzer.Add(buffer);
+        beatNetResampler?.Add(buffer, pcm => Protocol.Write(new
+        {
+            type = "beatnetPcm",
+            data = Convert.ToBase64String(pcm),
+        }));
+    };
     recorder.RecordingStopped += (_, eventArgs) =>
     {
         if (eventArgs.Exception is not null)
@@ -84,7 +93,10 @@ try
     {
         var snapshot = analyzer.Snapshot();
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var hasSignal = snapshot.UpdatedAt > 0 && now - snapshot.UpdatedAt < 300;
+        var hasSignal =
+            snapshot.UpdatedAt > 0 &&
+            now - snapshot.UpdatedAt < 300 &&
+            snapshot.LoudnessDb > -85;
         Protocol.Write(new
         {
             type = "frame",
@@ -95,6 +107,15 @@ try
                 bass = hasSignal ? snapshot.BassDb : -120,
                 mids = hasSignal ? snapshot.MidsDb : -120,
                 treble = hasSignal ? snapshot.TrebleDb : -120,
+            },
+            features = new
+            {
+                loudnessDb = hasSignal ? snapshot.LoudnessDb : -120,
+                subBassDb = hasSignal ? snapshot.SubBassDb : -120,
+                lowMidDb = hasSignal ? snapshot.LowMidDb : -120,
+                highMidDb = hasSignal ? snapshot.HighMidDb : -120,
+                spectralCentroid = hasSignal ? snapshot.SpectralCentroid : 0,
+                spectralFlux = hasSignal ? snapshot.SpectralFlux : 0,
             },
         });
     }

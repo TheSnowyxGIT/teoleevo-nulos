@@ -5,6 +5,13 @@ export const DEFAULT_OPTIONS: AppOptions = {
   fftSize: 2048,
   fps: 30,
   meterFloor: -70,
+  beatNet: true,
+  autoDropPresets: false,
+  visualizerSettings: {
+    frameRate: 30,
+    speed: 1.07175,
+    audioGain: 1,
+  },
 };
 
 export const BAND_LABELS = {
@@ -49,3 +56,28 @@ export const SMOOTHING_ORDER: SmoothingProfile[] = [
 ];
 
 export const METER_FLOORS = [-80, -70, -60, -50] as const;
+
+export const VISUAL_FRAME_RATES = [10, 15, 20, 24, 30, 45, 60, 90, 120] as const;
+export const ANIMATION_SPEEDS = [
+  0,
+  0.001,
+  0.0025,
+  0.005,
+  0.0075,
+  0.01,
+  0.025,
+  0.05,
+  0.075,
+  0.1,
+  0.25,
+  0.5,
+  0.75,
+  1,
+  1.05,
+  1.07175,
+  1.1,
+  1.25,
+  1.5,
+  2,
+] as const;
+export const VISUAL_AUDIO_GAINS = [0, 0.1, 0.25, 0.5, 0.75, 1] as const;

@@ -6,7 +6,10 @@ internal sealed record Options(
     IReadOnlyList<string> TextureDirectories,
     string? DeviceId,
     int Width,
-    int Height)
+    int Height,
+    int FrameRate,
+    double Speed,
+    double AudioGain)
 {
     public static Options Parse(string[] args)
     {
@@ -16,6 +19,9 @@ internal sealed record Options(
         var textureDirectories = new List<string>();
         var width = 1280;
         var height = 720;
+        var frameRate = 30;
+        var speed = 1.07175;
+        var audioGain = 1.0;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -49,6 +55,17 @@ internal sealed record Options(
                 case "--height":
                     height = int.Parse(ReadValue());
                     break;
+                case "--speed":
+                    speed = double.Parse(
+                        ReadValue(),
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    break;
+                case "--fps":
+                    frameRate = int.Parse(ReadValue(), System.Globalization.CultureInfo.InvariantCulture);
+                    break;
+                case "--audio-gain":
+                    audioGain = ParseDouble(ReadValue());
+                    break;
                 default:
                     throw new ArgumentException($"Option inconnue: {argument}.");
             }
@@ -62,6 +79,18 @@ internal sealed record Options(
         {
             throw new ArgumentException("La fenêtre doit mesurer au moins 320 × 240 pixels.");
         }
+        if (frameRate is < 10 or > 120)
+        {
+            throw new ArgumentException("Le framerate doit être compris entre 10 et 120 FPS.");
+        }
+        if (speed is < 0.0 or > 2.0)
+        {
+            throw new ArgumentException("La vitesse d’animation doit être comprise entre 0 et 2.");
+        }
+        if (audioGain is < 0.0 or > 8.0)
+        {
+            throw new ArgumentException("Le volume visuel doit être compris entre 0 et 8.");
+        }
 
         return new Options(
             Path.GetFullPath(runtimeDirectory),
@@ -69,6 +98,13 @@ internal sealed record Options(
             textureDirectories.Select(Path.GetFullPath).ToArray(),
             deviceId,
             width,
-            height);
+            height,
+            frameRate,
+            speed,
+            audioGain);
+
+        static double ParseDouble(string value) => double.Parse(
+            value,
+            System.Globalization.CultureInfo.InvariantCulture);
     }
 }

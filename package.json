@@ -24,6 +24,7 @@
     "renderer:build:wsl": "'/mnt/c/Program Files/dotnet/dotnet.exe' build native/Visualizer/Visualizer.csproj --configuration Release",
     "renderer:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-projectm.ps1",
     "renderer:install:wsl": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$(wslpath -w scripts/install-projectm.ps1)\"",
+    "beatnet:install": "bash scripts/install-beatnet.sh",
     "test": "tsx --test tests/**/*.test.ts"
   },
   "keywords": [],
