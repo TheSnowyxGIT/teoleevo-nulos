@@ -14,6 +14,7 @@ Options:
   --fps <nombre>         Rafraîchissement entre 10 et 60 (défaut: 30)
   --floor <dB>           Plancher des vumètres, de -100 à -30 (défaut: -70)
   --helper <chemin>      Chemin explicite vers AudioCapture.exe
+  --nestdrop-dir <chemin> Racine de l'installation NestDropClassicV2x2 (mémorisée)
   --preset-dir <chemin>  Dossier de presets .milk (recherche récursive)
   --texture-dir <chemin> Dossier de textures MilkDrop
   --renderer <chemin>    Chemin explicite vers Visualizer.exe/.dll
@@ -88,6 +89,10 @@ export function parseCli(args: string[], defaults: AppOptions = DEFAULT_OPTIONS)
       }
       case '--helper':
         options.helperPath = readValue(args, index, argument);
+        index += 1;
+        break;
+      case '--nestdrop-dir':
+        options.nestDropDirectory = readValue(args, index, argument);
         index += 1;
         break;
       case '--preset-dir':

@@ -37,6 +37,9 @@ export function defaultUserSettings(): UserSettings {
 export function optionsFromSettings(settings: UserSettings): AppOptions {
   return {
     ...DEFAULT_OPTIONS,
+    ...(process.env['TEOLEEVO_NESTDROP_DIR'] || settings.nestDropDirectory
+      ? {nestDropDirectory: process.env['TEOLEEVO_NESTDROP_DIR'] ?? settings.nestDropDirectory}
+      : {}),
     ...(settings.deviceId ? {deviceId: settings.deviceId} : {}),
     meterFloor: settings.meterFloor,
     visualizerSettings: {...settings.visualizerSettings},
@@ -77,6 +80,9 @@ function parseSettings(value: unknown): UserSettings {
     : {};
   return {
     version: 1,
+    ...(typeof value['nestDropDirectory'] === 'string' && value['nestDropDirectory'].trim()
+      ? {nestDropDirectory: value['nestDropDirectory'].trim()}
+      : {}),
     ...(typeof value['deviceId'] === 'string' ? {deviceId: value['deviceId']} : {}),
     smoothing: smoothingValues.has(String(value['smoothing']))
       ? (value['smoothing'] as UserSettings['smoothing'])

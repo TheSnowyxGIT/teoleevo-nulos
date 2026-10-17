@@ -4,8 +4,10 @@ import {render} from 'ink';
 import {parseCli, HELP_TEXT} from './cli-options.js';
 import {createCapture} from './audio/create-capture.js';
 import {
+  findDefaultNestDropDirectory,
   findDefaultPresetDirectory,
   inferTextureDirectory,
+  resolveNestDropInstallation,
   scanPresets,
 } from './presets/catalog.js';
 import {optionsFromSettings, SettingsStore} from './persistence/settings-store.js';
@@ -27,6 +29,16 @@ async function main(): Promise<void> {
 
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       throw new Error('Teoleevo doit être lancé dans un terminal interactif.');
+    }
+
+    const nestDropDirectory =
+      options.nestDropDirectory ?? findDefaultNestDropDirectory();
+    if (nestDropDirectory) {
+      const installation = resolveNestDropInstallation(nestDropDirectory);
+      options.nestDropDirectory = installation.directory;
+      options.presetDirectory ??= installation.presetDirectory;
+      options.textureDirectory ??= installation.textureDirectory;
+      options.nestDropRendererPath ??= installation.rendererPath;
     }
 
     const presetDirectory = options.presetDirectory ?? findDefaultPresetDirectory();

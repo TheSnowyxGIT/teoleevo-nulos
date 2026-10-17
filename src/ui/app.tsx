@@ -302,6 +302,9 @@ export function App({
     const selectedDisplay = displays[selectedDisplayIndex];
     void saveSettings({
       version: 1,
+      ...(options.nestDropDirectory
+        ? {nestDropDirectory: options.nestDropDirectory}
+        : {}),
       ...(info?.deviceId || options.deviceId
         ? {deviceId: info?.deviceId ?? options.deviceId}
         : {}),
@@ -335,6 +338,7 @@ export function App({
     initialSettings.selectedDisplayId,
     meterFloor,
     options.deviceId,
+    options.nestDropDirectory,
     presetTagFilter,
     saveSettings,
     selectedDisplayIndex,

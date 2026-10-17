@@ -24,6 +24,7 @@ test('SettingsStore persists options and custom playlists', async () => {
     const store = new SettingsStore(path.join(directory, 'nested', 'settings.json'));
     const settings = {
       ...defaultUserSettings(),
+      nestDropDirectory: String.raw`D:\Apps\NestDropClassicV2x2`,
       deviceId: 'speakers',
       smoothing: 'fast' as const,
       meterFloor: -60,

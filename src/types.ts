@@ -67,6 +67,7 @@ export interface AppOptions {
   fps: number;
   meterFloor: number;
   helperPath?: string;
+  nestDropDirectory?: string;
   presetDirectory?: string;
   textureDirectory?: string;
   rendererPath?: string;
@@ -99,6 +100,7 @@ export interface CustomPlaylist {
 
 export interface UserSettings {
   version: 1;
+  nestDropDirectory?: string;
   deviceId?: string;
   smoothing: SmoothingProfile;
   meterFloor: number;

@@ -3,7 +3,10 @@ import {mkdtemp, mkdir, rm, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {scanPresets} from '../src/presets/catalog.js';
+import {
+  resolveNestDropInstallation,
+  scanPresets,
+} from '../src/presets/catalog.js';
 import {tagsForPresetName} from '../src/presets/tags.js';
 
 test('scanPresets finds .milk files recursively and sorts them', async () => {
@@ -39,4 +42,37 @@ test('curated presets can belong to several music sections', () => {
 
 test('scanPresets explains a missing directory', async () => {
   await assert.rejects(scanPresets('/definitely/missing/presets'), /introuvable/);
+});
+
+test('resolveNestDropInstallation derives and validates the complete layout', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'teoleevo-nestdrop-'));
+  try {
+    const milkDropDirectory = path.join(directory, 'Plugins', 'Milkdrop2');
+    await Promise.all([
+      mkdir(path.join(milkDropDirectory, 'Presets'), {recursive: true}),
+      mkdir(path.join(milkDropDirectory, 'Textures'), {recursive: true}),
+    ]);
+    await writeFile(path.join(directory, 'Plugins', 'NestDrop_SpoutSender.exe'), '');
+
+    assert.deepEqual(resolveNestDropInstallation(directory), {
+      directory,
+      presetDirectory: path.join(milkDropDirectory, 'Presets'),
+      textureDirectory: path.join(milkDropDirectory, 'Textures'),
+      rendererPath: path.join(directory, 'Plugins', 'NestDrop_SpoutSender.exe'),
+    });
+  } finally {
+    await rm(directory, {recursive: true, force: true});
+  }
+});
+
+test('resolveNestDropInstallation rejects an incomplete copy', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'teoleevo-nestdrop-'));
+  try {
+    assert.throws(
+      () => resolveNestDropInstallation(directory),
+      /Installation NestDrop incomplète/,
+    );
+  } finally {
+    await rm(directory, {recursive: true, force: true});
+  }
 });

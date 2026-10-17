@@ -187,6 +187,19 @@ et Linux, les réglages sont stockés dans
 `%APPDATA%\Teoleevo\settings.json`. La variable `TEOLEEVO_CONFIG_PATH` permet
 de choisir un autre fichier.
 
+Le chemin de NestDrop peut être défini une seule fois avec le dossier racine de
+l'installation. Il est validé puis sauvegardé avec les autres réglages :
+
+```powershell
+pnpm dev:audio -- --nestdrop-dir "D:\Applications\NestDropClassicV2x2"
+```
+
+Aux lancements suivants, `pnpm dev:audio` suffit. On peut aussi utiliser la
+variable `TEOLEEVO_NESTDROP_DIR`. Un nouvel argument `--nestdrop-dir` est
+prioritaire sur la valeur mémorisée. Le dossier doit conserver la structure
+originale de NestDrop, notamment `Plugins\Milkdrop2\Presets`,
+`Plugins\Milkdrop2\Textures` et `Plugins\NestDrop_SpoutSender.exe`.
+
 ## Options de ligne de commande
 
 ```text
@@ -196,6 +209,7 @@ de choisir un autre fichier.
 --fps <nombre>         de 10 à 60
 --floor <dB>           plancher visuel de -100 à -30 dB
 --helper <chemin>      chemin explicite vers AudioCapture.exe
+--nestdrop-dir <chemin> dossier racine de NestDropClassicV2x2 (mémorisé)
 --preset-dir <chemin>  dossier de presets .milk
 --texture-dir <chemin> dossier des textures MilkDrop
 --renderer <chemin>    chemin vers Visualizer.exe ou Visualizer.dll
