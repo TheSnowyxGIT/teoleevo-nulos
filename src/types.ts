@@ -1,4 +1,5 @@
 export type BandName = 'bass' | 'mids' | 'treble';
+export type SoundCue = 'chime' | 'impact' | 'airhorn';
 
 export type BandValues = Record<BandName, number>;
 
@@ -39,6 +40,7 @@ export interface CaptureSource {
   readonly kind: 'demo' | 'wasapi';
   start(events: CaptureEvents): Promise<void>;
   selectDevice(deviceId: string): Promise<void>;
+  playSound(sound: SoundCue): Promise<void>;
   stop(): Promise<void>;
 }
 

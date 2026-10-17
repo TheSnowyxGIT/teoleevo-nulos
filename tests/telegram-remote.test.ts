@@ -17,8 +17,29 @@ test('Telegram callback buttons map only to fixed control commands', () => {
     type: 'set-paused',
     enabled: true,
   });
+  assert.deepEqual(commandForTelegramCallback('sound:impact'), {
+    type: 'play-sound',
+    sound: 'impact',
+  });
   assert.equal(commandForTelegramCallback('/next'), undefined);
   assert.equal(commandForTelegramCallback('unknown'), undefined);
+});
+
+test('Telegram sound commands accept only the supported effects', () => {
+  assert.deepEqual(commandForTelegramMessage('/sound'), {
+    type: 'play-sound',
+    sound: 'chime',
+  });
+  assert.deepEqual(commandForTelegramMessage('/sound impact'), {
+    type: 'play-sound',
+    sound: 'impact',
+  });
+  assert.deepEqual(commandForTelegramMessage('/sound@teoleevobot AIRHORN'), {
+    type: 'play-sound',
+    sound: 'airhorn',
+  });
+  assert.equal(commandForTelegramMessage('/sound unknown'), undefined);
+  assert.equal(commandForTelegramMessage('sound chime'), undefined);
 });
 
 test('Telegram accepts only the exact /next message command', () => {
@@ -70,6 +91,10 @@ test('Telegram remote discards stale updates and accepts authorized /next', asyn
         },
         {
           update_id: 13,
+          message: {chat: {id: 42, type: 'private'}, text: '/sound impact'},
+        },
+        {
+          update_id: 14,
           callback_query: {
             id: 'unauthorized',
             data: 'preset:previous',
@@ -77,7 +102,7 @@ test('Telegram remote discards stale updates and accepts authorized /next', asyn
           },
         },
         {
-          update_id: 14,
+          update_id: 15,
           callback_query: {
             id: 'fresh',
             data: 'preset:next',
@@ -97,13 +122,13 @@ test('Telegram remote discards stale updates and accepts authorized /next', asyn
 
   const commandBus = new ControlCommandBus();
   const commands: ControlCommand[] = [];
-  let resolveCommand: ((command: ControlCommand) => void) | undefined;
-  const received = new Promise<ControlCommand>(resolve => {
-    resolveCommand = resolve;
+  let resolveCommands: (() => void) | undefined;
+  const received = new Promise<void>(resolve => {
+    resolveCommands = resolve;
   });
   commandBus.subscribe(command => {
     commands.push(command);
-    resolveCommand?.(command);
+    if (commands.length === 3) resolveCommands?.();
   });
   const remote = new TelegramRemote(
     {token: 'test-token', chatId: '42', pollTimeoutSeconds: 1},
@@ -112,12 +137,12 @@ test('Telegram remote discards stale updates and accepts authorized /next', asyn
   );
 
   remote.start();
-  assert.deepEqual(await received, {type: 'cycle-preset', direction: 1});
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await received;
   await remote.stop();
 
   assert.deepEqual(commands, [
     {type: 'cycle-preset', direction: 1},
+    {type: 'play-sound', sound: 'impact'},
     {type: 'cycle-preset', direction: 1},
   ]);
   assert.ok(methods.includes('sendMessage'));

@@ -73,12 +73,15 @@ TEOLEEVO_TELEGRAM_TOKEN=123456:token-du-bot
 TEOLEEVO_TELEGRAM_CHAT_ID=123456789
 ```
 
-Le bot accepte `/next` depuis le chat autorisé et envoie un panneau avec les
-boutons preset précédent/suivant, pause/reprise, moteur, plein écran,
-auto-switch et shuffle. Les autres messages texte ne pilotent jamais
-l’application. Le chat ID est vérifié sur chaque commande et chaque clic. Les
-anciennes commandes sont ignorées au démarrage et les problèmes Telegram
-n’interrompent pas Ink, Chrome, l’audio ou le visualiseur. `.env` est exclu de Git.
+Le bot accepte `/next` et `/sound [chime|impact|airhorn]` depuis le chat autorisé
+et envoie un panneau avec les boutons preset précédent/suivant, pause/reprise,
+moteur, plein écran, auto-switch, shuffle et effets sonores. Ces effets sont
+générés localement, sans fichiers audio, et restent exclusivement accessibles
+dans Telegram : aucun contrôle n’est ajouté à Ink ou à l’interface web. Les
+autres messages texte ne pilotent jamais l’application. Le chat ID est vérifié
+sur chaque commande et chaque clic. Les anciennes commandes sont ignorées au
+démarrage et les problèmes Telegram n’interrompent pas Ink, Chrome, l’audio ou
+le visualiseur. `.env` est exclu de Git.
 Si une valeur Telegram manque dans `.env`, l’application la complète depuis
 `.env.example` comme configuration de secours.
 

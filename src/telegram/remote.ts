@@ -66,6 +66,11 @@ export const TELEGRAM_REMOTE_KEYBOARD = {
       {text: '🔀 Aléatoire', callback_data: 'shuffle:on'},
       {text: 'Séquentiel', callback_data: 'shuffle:off'},
     ],
+    [
+      {text: '🔔 Chime', callback_data: 'sound:chime'},
+      {text: '💥 Impact', callback_data: 'sound:impact'},
+      {text: '📣 Airhorn', callback_data: 'sound:airhorn'},
+    ],
   ],
 } as const;
 
@@ -82,6 +87,9 @@ const CALLBACK_COMMANDS: Readonly<Record<string, ControlCommand>> = {
   'auto:off': {type: 'set-auto-switch', enabled: false},
   'shuffle:on': {type: 'set-shuffle', enabled: true},
   'shuffle:off': {type: 'set-shuffle', enabled: false},
+  'sound:chime': {type: 'play-sound', sound: 'chime'},
+  'sound:impact': {type: 'play-sound', sound: 'impact'},
+  'sound:airhorn': {type: 'play-sound', sound: 'airhorn'},
 };
 
 export function commandForTelegramCallback(data: string): ControlCommand | undefined {
@@ -89,9 +97,16 @@ export function commandForTelegramCallback(data: string): ControlCommand | undef
 }
 
 export function commandForTelegramMessage(text: string): ControlCommand | undefined {
-  return /^\/next(?:@\w+)?\s*$/i.test(text)
-    ? {type: 'cycle-preset', direction: 1}
-    : undefined;
+  if (/^\/next(?:@\w+)?\s*$/i.test(text)) {
+    return {type: 'cycle-preset', direction: 1};
+  }
+  const sound = text.match(
+    /^\/sound(?:@\w+)?(?:\s+(chime|impact|airhorn))?\s*$/i,
+  )?.[1]?.toLowerCase() ?? (/^\/sound(?:@\w+)?\s*$/i.test(text) ? 'chime' : undefined);
+  if (sound === 'chime' || sound === 'impact' || sound === 'airhorn') {
+    return {type: 'play-sound', sound};
+  }
+  return undefined;
 }
 
 export function createTelegramRemoteFromEnvironment(
@@ -196,7 +211,7 @@ export class TelegramRemote {
         this.commandBus.dispatch(messageCommand);
         await this.call('sendMessage', {
           chat_id: receivedChatId,
-          text: '⏭ Preset suivant',
+          text: feedbackForCommand(messageCommand),
         });
       }
       return;
@@ -226,14 +241,16 @@ export class TelegramRemote {
       text:
         `Votre chat ID est ${chatId}.\n\n` +
         'Ajoutez-le dans TEOLEEVO_TELEGRAM_CHAT_ID puis redémarrez Teoleevo. ' +
-        'Seule la commande /next peut piloter l’application.',
+        'Les commandes disponibles sont /next et /sound.',
     });
   }
 
   private async sendControlPanel(chatId: string): Promise<void> {
     await this.call('sendMessage', {
       chat_id: chatId,
-      text: 'Teoleevo est en ligne. Utilisez /next ou les boutons ci-dessous.',
+      text:
+        'Teoleevo est en ligne. Utilisez /next, /sound [chime|impact|airhorn] ' +
+        'ou les boutons ci-dessous.',
       reply_markup: TELEGRAM_REMOTE_KEYBOARD,
     });
   }
@@ -271,6 +288,15 @@ export class TelegramRemote {
 
 function isStartMessage(text: string | undefined): boolean {
   return typeof text === 'string' && /^\/start(?:@\w+)?(?:\s|$)/i.test(text);
+}
+
+function feedbackForCommand(command: ControlCommand): string {
+  if (command.type === 'cycle-preset') return '⏭ Preset suivant';
+  if (command.type === 'play-sound') {
+    const labels = {chime: '🔔 Chime', impact: '💥 Impact', airhorn: '📣 Airhorn'};
+    return `${labels[command.sound]} envoyé`;
+  }
+  return 'Commande envoyée';
 }
 
 function isAbortError(error: unknown): boolean {

@@ -1,5 +1,6 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using System.Text.Json;
 using Teoleevo.AudioCapture;
 
 try
@@ -38,6 +39,7 @@ try
     {
         WaveFormat = format,
     };
+    using var soundCuePlayer = new SoundCuePlayer(selectedDevice);
     Console.CancelKeyPress += (_, eventArgs) =>
     {
         eventArgs.Cancel = true;
@@ -78,6 +80,28 @@ try
             {
                 cancellation.Cancel();
                 break;
+            }
+            try
+            {
+                using var document = JsonDocument.Parse(command);
+                var root = document.RootElement;
+                if (
+                    root.TryGetProperty("type", out var type) &&
+                    type.GetString() == "play-sound" &&
+                    root.TryGetProperty("sound", out var sound) &&
+                    sound.GetString() is { } soundName)
+                {
+                    soundCuePlayer.Play(soundName);
+                }
+            }
+            catch (Exception exception) when (
+                exception is not OperationCanceledException &&
+                !cancellation.IsCancellationRequested)
+            {
+                // Sound cues are an optional Telegram-only convenience. A playback
+                // failure must never stop loopback capture or put the main UI in an
+                // error state.
+                Console.Error.WriteLine($"Sound cue ignored: {exception.Message}");
             }
         }
     }, cancellation.Token);

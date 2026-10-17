@@ -3,6 +3,7 @@ import type {
   BandValues,
   Playlist,
   PresetTag,
+  SoundCue,
   SmoothingProfile,
   VisualizerDisplay,
   VisualizerSettings,
@@ -68,6 +69,7 @@ export type ControlCommand =
   | {type: 'set-renderer-running'; enabled: boolean}
   | {type: 'set-fullscreen'; enabled: boolean}
   | {type: 'cycle-preset'; direction: 1 | -1}
+  | {type: 'play-sound'; sound: SoundCue}
   | {type: 'show-preset'; presetId: string}
   | {type: 'set-device'; deviceId: string}
   | {type: 'set-display'; displayId: string}

@@ -2,6 +2,7 @@ import type {
   AudioDevice,
   CaptureEvents,
   CaptureSource,
+  SoundCue,
   SpectrumFrame,
 } from '../types.js';
 
@@ -41,6 +42,8 @@ export class DemoCapture implements CaptureSource {
   }
 
   async selectDevice(_deviceId: string): Promise<void> {}
+
+  async playSound(_sound: SoundCue): Promise<void> {}
 
   async stop(): Promise<void> {
     if (this.timer) {

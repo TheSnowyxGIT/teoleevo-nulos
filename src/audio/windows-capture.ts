@@ -9,6 +9,7 @@ import type {
   CaptureEvents,
   CaptureInfo,
   CaptureSource,
+  SoundCue,
   SpectrumFrame,
 } from '../types.js';
 
@@ -145,6 +146,17 @@ export class WindowsCapture implements CaptureSource {
     await this.stopProcess();
     this.changingDevice = false;
     await this.launch();
+  }
+
+  async playSound(sound: SoundCue): Promise<void> {
+    const child = this.child;
+    if (!child?.stdin.writable) return;
+    await new Promise<void>((resolve, reject) => {
+      child.stdin.write(`${JSON.stringify({type: 'play-sound', sound})}\n`, error => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
   }
 
   async stop(): Promise<void> {

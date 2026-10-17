@@ -76,6 +76,8 @@ Put `TEOLEEVO_TELEGRAM_TOKEN=your-token` in `.env`, start Teoleevo, and send
 TEOLEEVO_TELEGRAM_CHAT_ID=123456789
 ```
 
-Restart Teoleevo. The private button panel is sent automatically. `/next`
-selects the next preset; every other text command is ignored. `.env` is ignored
-by Git. Missing Telegram values are loaded from `.env.example` as a fallback.
+Restart Teoleevo. The private button panel is sent automatically. `/next` and
+`/sound [chime|impact|airhorn]` are also available. Sound actions are generated
+locally and are intentionally available only through Telegram, not the terminal
+or web UI. Every other text command is ignored. `.env` is ignored by Git.
+Missing Telegram values are loaded from `.env.example` as a fallback.

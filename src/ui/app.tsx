@@ -775,6 +775,9 @@ export function App({
           cyclePreset(command.direction);
         }
         break;
+      case 'play-sound':
+        void source.playSound(command.sound).catch(() => undefined);
+        break;
       case 'show-preset': {
         const preset = presetById.get(command.presetId);
         if (preset) showPreset(preset, false);
