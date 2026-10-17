@@ -79,3 +79,4 @@ export const ANIMATION_SPEEDS = [
   2,
 ] as const;
 export const VISUAL_AUDIO_GAINS = [0, 0.1, 0.25, 0.5, 0.75, 1] as const;
+export const AUTO_SWITCH_INTERVALS = [1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 45, 60] as const;

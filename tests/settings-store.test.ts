@@ -31,6 +31,9 @@ test('SettingsStore persists options and custom playlists', async () => {
       selectedDisplayId: String.raw`\\.\DISPLAY2`,
       selectedPlaylistId: 'custom:show',
       presetTagFilter: 'drop' as const,
+      autoSwitchEnabled: true,
+      autoSwitchSeconds: 8,
+      shuffleEnabled: true,
       customPlaylists: [
         {id: 'custom:show', name: 'Show', presetIds: ['one.milk', 'two.milk']},
       ],
@@ -49,6 +52,9 @@ test('SettingsStore ignores invalid custom playlists and clamps options', async 
     await writeFile(filePath, JSON.stringify({
       meterFloor: -200,
       visualizerSettings: {frameRate: 500, speed: -2, audioGain: 8},
+      autoSwitchEnabled: 'yes',
+      autoSwitchSeconds: 9000,
+      shuffleEnabled: 1,
       customPlaylists: [
         {id: 'tag:drop', name: 'Invalid', presetIds: []},
         {id: 'custom:ok', name: 'Valid', presetIds: ['a', 'a', 4]},
@@ -57,6 +63,9 @@ test('SettingsStore ignores invalid custom playlists and clamps options', async 
     const settings = await new SettingsStore(filePath).load();
     assert.equal(settings.meterFloor, -100);
     assert.deepEqual(settings.visualizerSettings, {frameRate: 120, speed: 0, audioGain: 1});
+    assert.equal(settings.autoSwitchEnabled, false);
+    assert.equal(settings.autoSwitchSeconds, 3600);
+    assert.equal(settings.shuffleEnabled, false);
     assert.deepEqual(settings.customPlaylists, [
       {id: 'custom:ok', name: 'Valid', presetIds: ['a']},
     ]);

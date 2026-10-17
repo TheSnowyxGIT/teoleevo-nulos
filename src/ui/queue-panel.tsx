@@ -7,20 +7,52 @@ interface QueuePanelProps {
   playlist?: Playlist;
   presets: Preset[];
   currentPreset?: Preset;
+  upcomingOverride?: Preset[];
+  autoSwitchEnabled: boolean;
+  autoSwitchSeconds: number;
+  autoSwitchRemaining: number;
+  autoSwitchPaused: boolean;
+  autoSwitchPauseReason: 'silence' | 'manual';
+  shuffleEnabled: boolean;
 }
 
 export function QueuePanel({
   playlist,
   presets,
   currentPreset,
+  upcomingOverride,
+  autoSwitchEnabled,
+  autoSwitchSeconds,
+  autoSwitchRemaining,
+  autoSwitchPaused,
+  autoSwitchPauseReason,
+  shuffleEnabled,
 }: QueuePanelProps): React.JSX.Element {
-  const queue = buildPresetQueue(presets, currentPreset, 3);
+  const defaultQueue = buildPresetQueue(presets, currentPreset, 3);
+  const queue = {
+    ...defaultQueue,
+    upcoming: upcomingOverride?.slice(0, 3) ?? defaultQueue.upcoming,
+  };
 
   return (
     <Box borderStyle="round" borderColor="blue" paddingX={1} flexDirection="column">
       <Box justifyContent="space-between">
         <Text bold color="blue">FILE DE LECTURE</Text>
         <Text dimColor>{playlist?.name ?? 'Aucune playlist'} · {presets.length}</Text>
+      </Box>
+      <Box justifyContent="space-between">
+        <Text color={!autoSwitchEnabled ? 'gray' : autoSwitchPaused ? 'yellow' : 'green'}>
+          AUTO {!autoSwitchEnabled
+            ? '○ désactivé'
+            : autoSwitchPaused
+              ? `◌ pause · ${autoSwitchPauseReason === 'silence' ? 'silence' : 'manuelle'} · ${autoSwitchRemaining.toFixed(1)} s`
+              : `● ${autoSwitchRemaining.toFixed(1)} s`}
+        </Text>
+        <Text color={shuffleEnabled ? 'magenta' : 'gray'}>
+          {shuffleEnabled
+            ? `ALÉATOIRE · ${autoSwitchSeconds} s · sans répétition`
+            : `SÉQUENTIEL · ${autoSwitchSeconds} s`}
+        </Text>
       </Box>
 
       {queue.priority ? (

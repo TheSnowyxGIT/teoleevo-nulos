@@ -6,7 +6,9 @@ import {
   mergePresetIds,
   uniquePlaylistName,
 } from '../src/playlists/playlists.js';
-import {buildPresetQueue} from '../src/playlists/queue.js';
+import {buildPresetQueue, nextSequentialPreset} from '../src/playlists/queue.js';
+import {createShuffleCycle} from '../src/playlists/shuffle.js';
+import {advanceAutoSwitchCountdown} from '../src/playlists/auto-switch.js';
 import type {Playlist, Preset} from '../src/types.js';
 
 const presets: Preset[] = [
@@ -61,4 +63,27 @@ test('buildPresetQueue continues after the current playlist preset and wraps onc
   const queue = buildPresetQueue(presets, presets[1], 4);
   assert.equal(queue.current?.id, 'b');
   assert.deepEqual(queue.upcoming.map(preset => preset.id), ['c', 'a']);
+});
+
+test('nextSequentialPreset starts at the beginning and loops after the last preset', () => {
+  assert.equal(nextSequentialPreset(presets)?.id, 'a');
+  assert.equal(nextSequentialPreset(presets, presets[2])?.id, 'a');
+});
+
+test('createShuffleCycle contains every preset exactly once', () => {
+  const cycle = createShuffleCycle(['a', 'b', 'c', 'd', 'a'], undefined, () => 0.25);
+  assert.equal(cycle.length, 4);
+  assert.deepEqual([...cycle].sort(), ['a', 'b', 'c', 'd']);
+});
+
+test('createShuffleCycle avoids repeating the previous preset at a loop boundary', () => {
+  const cycle = createShuffleCycle(['a', 'b', 'c'], 'a', () => 0.99);
+  assert.notEqual(cycle[0], 'a');
+  assert.deepEqual([...cycle].sort(), ['a', 'b', 'c']);
+});
+
+test('automatic switching countdown advances only while audio has a signal', () => {
+  assert.equal(advanceAutoSwitchCountdown(4000, 750, true), 3250);
+  assert.equal(advanceAutoSwitchCountdown(3250, 2000, false), 3250);
+  assert.equal(advanceAutoSwitchCountdown(500, 750, true), 0);
 });

@@ -18,6 +18,7 @@ pilotables sans interrompre le moteur de rendu.
 - catalogue récursif, recherche instantanée et filtres de tags dans les presets `.milk` ;
 - quatre playlists système par tag et playlists personnalisées éditables ;
 - copie et fusion de playlists avec sauvegarde automatique des préférences ;
+- lecture automatique configurable et mode aléatoire sans répétition par cycle ;
 - preview moteur persistante et sortie plein écran sélectionnable par moniteur ;
 - vitesse globale, volume de réaction musicale et framerate réglables à chaud ;
 - rendu MilkDrop 2 natif via NestDrop, avec libprojectM comme solution de repli ;
@@ -106,6 +107,7 @@ pnpm start
 | `O` | Options interactives |
 | `L` | Choisir ou gérer les playlists |
 | `P` | Chercher et sélectionner un preset `.milk` |
+| `T` | Activer ou désactiver rapidement l’auto-switch |
 | `Tab` | Changer le filtre de tag dans le sélecteur de presets |
 | `V` | Démarrer ou arrêter le moteur et sa fenêtre de preview |
 | `F` | Afficher ou masquer la sortie plein écran |
@@ -159,8 +161,25 @@ n’appartient pas à la playlist active, il apparaît dans une section priorita
 temporaire. Le prochain appui sur `N` reprend ensuite au début de la playlist
 active.
 
+## Lecture automatique
+
+La touche `T` active ou désactive rapidement l’auto-switch. Il est désactivé au
+premier lancement et son intervalle par défaut est de 4 secondes. Les options
+`O` permettent de régler l’intervalle, d’activer l’auto-switch et de choisir
+entre l’ordre séquentiel et l’ordre aléatoire.
+
+En mode séquentiel, la lecture revient au premier preset après le dernier. En
+mode aléatoire, l’application génère un cycle contenant chaque preset une seule
+fois. Un nouveau mélange n’est créé qu’après épuisement complet du cycle, sans
+répéter immédiatement le dernier preset du cycle précédent. La file et le
+compte à rebours restent visibles sur l’écran principal.
+
+Le compte à rebours avance uniquement lorsqu’un signal audio est présent. Si
+la musique est arrêtée, avant qu’elle commence ou pendant une pause manuelle,
+le temps restant est conservé puis reprend au retour du son.
+
 Les playlists personnalisées, la playlist active, le filtre de tag, la sortie
-audio, l’écran sélectionné et les options visuelles sont sauvegardés
+audio, l’écran sélectionné, la lecture automatique et les options visuelles sont sauvegardés
 automatiquement. Les quatre playlists système ne sont pas écrites dans le
 fichier : elles sont reconstruites depuis les tags à chaque lancement. Sous WSL
 et Linux, les réglages sont stockés dans

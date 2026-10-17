@@ -18,6 +18,9 @@ interface SettingsPanelProps {
   selectedDisplayIndex: number;
   fullscreenOutput: boolean;
   visualizerSettings: VisualizerSettings;
+  autoSwitchEnabled: boolean;
+  autoSwitchSeconds: number;
+  shuffleEnabled: boolean;
   selectedRow: number;
 }
 
@@ -53,6 +56,9 @@ export function SettingsPanel({
   selectedDisplayIndex,
   fullscreenOutput,
   visualizerSettings,
+  autoSwitchEnabled,
+  autoSwitchSeconds,
+  shuffleEnabled,
   selectedRow,
 }: SettingsPanelProps): React.JSX.Element {
   const selectedDevice = devices.find(device => device.id === selectedDeviceId);
@@ -112,6 +118,23 @@ export function SettingsPanel({
         active={selectedRow === 8}
         label="Plein écran"
         value={fullscreenOutput ? 'Activé' : 'Désactivé'}
+      />
+      <Box height={1} />
+      <Text bold color="blue">LECTURE AUTOMATIQUE</Text>
+      <Row
+        active={selectedRow === 9}
+        label="Auto-switch"
+        value={autoSwitchEnabled ? 'Activé' : 'Désactivé'}
+      />
+      <Row
+        active={selectedRow === 10}
+        label="Intervalle"
+        value={`${autoSwitchSeconds} seconde${autoSwitchSeconds > 1 ? 's' : ''}`}
+      />
+      <Row
+        active={selectedRow === 11}
+        label="Ordre"
+        value={shuffleEnabled ? 'Aléatoire · sans répétition' : 'Séquentiel'}
       />
     </Box>
   );

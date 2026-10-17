@@ -28,6 +28,9 @@ export function defaultUserSettings(): UserSettings {
     selectedPlaylistId: DEFAULT_PLAYLIST_ID,
     presetTagFilter: 'all',
     customPlaylists: [],
+    autoSwitchEnabled: false,
+    autoSwitchSeconds: 4,
+    shuffleEnabled: false,
   };
 }
 
@@ -107,6 +110,20 @@ function parseSettings(value: unknown): UserSettings {
       ? (value['presetTagFilter'] as UserSettings['presetTagFilter'])
       : defaults.presetTagFilter,
     customPlaylists: parseCustomPlaylists(value['customPlaylists']),
+    autoSwitchEnabled:
+      typeof value['autoSwitchEnabled'] === 'boolean'
+        ? value['autoSwitchEnabled']
+        : defaults.autoSwitchEnabled,
+    autoSwitchSeconds: finiteNumber(
+      value['autoSwitchSeconds'],
+      defaults.autoSwitchSeconds,
+      1,
+      3600,
+    ),
+    shuffleEnabled:
+      typeof value['shuffleEnabled'] === 'boolean'
+        ? value['shuffleEnabled']
+        : defaults.shuffleEnabled,
   };
 }
 

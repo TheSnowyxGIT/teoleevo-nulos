@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Box, Text, useApp, useInput, useWindowSize} from 'ink';
 import {
   ANIMATION_SPEEDS,
+  AUTO_SWITCH_INTERVALS,
   BAND_LABELS,
   dbToLevel,
   EMPTY_BANDS,
@@ -41,6 +42,9 @@ import {
   mergePresetIds,
   uniquePlaylistName,
 } from '../playlists/playlists.js';
+import {advanceAutoSwitchCountdown} from '../playlists/auto-switch.js';
+import {nextSequentialPreset} from '../playlists/queue.js';
+import {createShuffleCycle} from '../playlists/shuffle.js';
 import {HelpPanel} from './help-panel.js';
 import {Meter} from './meter.js';
 import {
@@ -128,6 +132,17 @@ export function App({
   const [playlistCatalogTagFilter, setPlaylistCatalogTagFilter] =
     useState<PresetTagFilter>('all');
   const [playlistCatalogIndex, setPlaylistCatalogIndex] = useState(0);
+  const [autoSwitchEnabled, setAutoSwitchEnabled] = useState(
+    initialSettings.autoSwitchEnabled,
+  );
+  const [autoSwitchSeconds, setAutoSwitchSeconds] = useState(
+    initialSettings.autoSwitchSeconds,
+  );
+  const [autoSwitchRemaining, setAutoSwitchRemaining] = useState(
+    initialSettings.autoSwitchEnabled ? initialSettings.autoSwitchSeconds : 0,
+  );
+  const [shuffleEnabled, setShuffleEnabled] = useState(initialSettings.shuffleEnabled);
+  const [shuffleUpcomingIds, setShuffleUpcomingIds] = useState<string[]>([]);
   const [settingsError, setSettingsError] = useState<string>();
   const [currentPreset, setCurrentPreset] = useState<Preset>();
   const [visualizerStatus, setVisualizerStatus] = useState<VisualizerStatus>(
@@ -138,6 +153,11 @@ export function App({
   const smoothingRef = useRef(smoothing);
   const meterFloorRef = useRef(meterFloor);
   const levelsRef = useRef<BandValues>(EMPTY_BANDS);
+  const shuffleUpcomingRef = useRef<string[]>([]);
+  const shuffleHistoryRef = useRef<string[]>([]);
+  const autoSwitchRemainingMsRef = useRef(
+    initialSettings.autoSwitchSeconds * 1000,
+  );
   pausedRef.current = paused;
   smoothingRef.current = smoothing;
   meterFloorRef.current = meterFloor;
@@ -161,6 +181,22 @@ export function App({
         .filter((preset): preset is Preset => Boolean(preset)),
     [activePlaylist, presetById],
   );
+  const activePresetSignature = useMemo(
+    () => activePresets.map(preset => preset.id).join('\u0000'),
+    [activePresets],
+  );
+  const shuffleUpcomingPresets = useMemo(
+    () =>
+      shuffleUpcomingIds
+        .map(id => presetById.get(id))
+        .filter((preset): preset is Preset => Boolean(preset)),
+    [presetById, shuffleUpcomingIds],
+  );
+
+  const replaceShuffleUpcoming = (ids: string[]): void => {
+    shuffleUpcomingRef.current = ids;
+    setShuffleUpcomingIds(ids);
+  };
 
   useEffect(() => {
     void source
@@ -242,6 +278,27 @@ export function App({
   }, [activePlaylist, activePlaylistId]);
 
   useEffect(() => {
+    shuffleHistoryRef.current = [];
+    if (!shuffleEnabled) {
+      shuffleUpcomingRef.current = [];
+      setShuffleUpcomingIds([]);
+      return;
+    }
+
+    const ids = activePresets.map(preset => preset.id);
+    const currentIsInPlaylist = ids.includes(currentPreset?.id ?? '');
+    const candidates = currentIsInPlaylist
+      ? ids.filter(id => id !== currentPreset?.id)
+      : ids;
+    const cycle =
+      candidates.length > 0
+        ? createShuffleCycle(candidates)
+        : createShuffleCycle(ids, currentPreset?.id);
+    shuffleUpcomingRef.current = cycle;
+    setShuffleUpcomingIds(cycle);
+  }, [activePlaylist?.id, activePresetSignature, shuffleEnabled]);
+
+  useEffect(() => {
     const selectedDisplay = displays[selectedDisplayIndex];
     void saveSettings({
       version: 1,
@@ -258,6 +315,9 @@ export function App({
       selectedPlaylistId: activePlaylist?.id ?? DEFAULT_PLAYLIST_ID,
       presetTagFilter,
       customPlaylists,
+      autoSwitchEnabled,
+      autoSwitchSeconds,
+      shuffleEnabled,
     })
       .then(() => setSettingsError(undefined))
       .catch(error =>
@@ -267,6 +327,8 @@ export function App({
       );
   }, [
     activePlaylist?.id,
+    autoSwitchEnabled,
+    autoSwitchSeconds,
     customPlaylists,
     displays,
     info?.deviceId,
@@ -278,6 +340,7 @@ export function App({
     selectedDisplayIndex,
     showHistory,
     smoothing,
+    shuffleEnabled,
     visualizerSettings,
   ]);
 
@@ -310,14 +373,69 @@ export function App({
     );
   }, [playlistCatalogQuery, playlistCatalogTagFilter, presets]);
 
-  const showPreset = (preset: Preset): void => {
+  const showPreset = (preset: Preset, closePanel = true): void => {
+    if (shuffleEnabled && activePresets.some(item => item.id === preset.id)) {
+      let remaining = shuffleUpcomingRef.current.filter(id => id !== preset.id);
+      if (remaining.length === 0 && activePresets.length > 0) {
+        remaining = createShuffleCycle(
+          activePresets.map(item => item.id),
+          preset.id,
+        );
+      }
+      replaceShuffleUpcoming(remaining);
+    }
     setCurrentPreset(preset);
-    setPanel('none');
+    if (closePanel) setPanel('none');
     void visualizer.showPreset(preset);
+  };
+
+  const cycleShuffledPreset = (closePanel: boolean): void => {
+    if (activePresets.length === 0) return;
+    const availableIds = new Set(activePresets.map(preset => preset.id));
+    let remaining = shuffleUpcomingRef.current.filter(id => availableIds.has(id));
+    if (remaining.length === 0) {
+      remaining = createShuffleCycle(
+        activePresets.map(preset => preset.id),
+        currentPreset?.id,
+      );
+    }
+    const nextId = remaining.shift();
+    if (
+      currentPreset &&
+      availableIds.has(currentPreset.id) &&
+      currentPreset.id !== nextId
+    ) {
+      shuffleHistoryRef.current = [
+        ...shuffleHistoryRef.current.slice(-199),
+        currentPreset.id,
+      ];
+    }
+    replaceShuffleUpcoming(remaining);
+    const preset = nextId ? presetById.get(nextId) : undefined;
+    if (preset) showPreset(preset, closePanel);
   };
 
   const cyclePreset = (direction: 1 | -1): void => {
     if (activePresets.length === 0) return;
+    if (shuffleEnabled && direction === 1) {
+      cycleShuffledPreset(true);
+      return;
+    }
+    if (shuffleEnabled && direction === -1) {
+      const previousId = shuffleHistoryRef.current.pop();
+      const previous = previousId ? presetById.get(previousId) : undefined;
+      if (previous) {
+        if (currentPreset && activePresets.some(preset => preset.id === currentPreset.id)) {
+          replaceShuffleUpcoming([
+            currentPreset.id,
+            ...shuffleUpcomingRef.current.filter(id => id !== currentPreset.id),
+          ]);
+        }
+        showPreset(previous);
+        return;
+      }
+    }
+
     const currentIndex = activePresets.findIndex(preset => preset.id === currentPreset?.id);
     const targetIndex =
       currentIndex < 0
@@ -328,6 +446,68 @@ export function App({
     const preset = activePresets[targetIndex];
     if (preset) showPreset(preset);
   };
+
+  const cycleAutomaticPreset = (): void => {
+    if (activePresets.length === 0) return;
+    if (shuffleEnabled) {
+      cycleShuffledPreset(false);
+      return;
+    }
+    const preset = nextSequentialPreset(activePresets, currentPreset);
+    if (preset) showPreset(preset, false);
+  };
+
+  useEffect(() => {
+    const duration = autoSwitchSeconds * 1000;
+    autoSwitchRemainingMsRef.current = duration;
+    setAutoSwitchRemaining(
+      autoSwitchEnabled && activePresets.length > 0 ? autoSwitchSeconds : 0,
+    );
+  }, [
+    activePlaylist?.id,
+    activePresetSignature,
+    autoSwitchEnabled,
+    autoSwitchSeconds,
+    currentPreset?.id,
+    shuffleEnabled,
+  ]);
+
+  useEffect(() => {
+    if (
+      !autoSwitchEnabled ||
+      activePresets.length === 0 ||
+      !hasSignal ||
+      paused
+    ) return;
+
+    let previousTick = Date.now();
+    const ticker = setInterval(() => {
+      const now = Date.now();
+      autoSwitchRemainingMsRef.current = advanceAutoSwitchCountdown(
+        autoSwitchRemainingMsRef.current,
+        now - previousTick,
+        true,
+      );
+      previousTick = now;
+      setAutoSwitchRemaining(autoSwitchRemainingMsRef.current / 1000);
+      if (autoSwitchRemainingMsRef.current <= 0) {
+        clearInterval(ticker);
+        autoSwitchRemainingMsRef.current = autoSwitchSeconds * 1000;
+        setAutoSwitchRemaining(autoSwitchSeconds);
+        cycleAutomaticPreset();
+      }
+    }, 250);
+    return () => clearInterval(ticker);
+  }, [
+    activePlaylist?.id,
+    activePresetSignature,
+    autoSwitchEnabled,
+    autoSwitchSeconds,
+    currentPreset?.id,
+    hasSignal,
+    paused,
+    shuffleEnabled,
+  ]);
 
   const cycleDevice = (direction: 1 | -1): void => {
     if (devices.length < 2) return;
@@ -402,6 +582,17 @@ export function App({
         break;
       case 8:
         toggleFullscreenOutput();
+        break;
+      case 9:
+        setAutoSwitchEnabled(current => !current);
+        break;
+      case 10:
+        setAutoSwitchSeconds(current =>
+          nextInList(AUTO_SWITCH_INTERVALS, current, direction),
+        );
+        break;
+      case 11:
+        setShuffleEnabled(current => !current);
         break;
     }
   };
@@ -684,7 +875,7 @@ export function App({
     if (panel === 'settings') {
       if (input.toLowerCase() === 'o') setPanel('none');
       else if (key.upArrow) setSelectedRow(row => Math.max(0, row - 1));
-      else if (key.downArrow) setSelectedRow(row => Math.min(8, row + 1));
+      else if (key.downArrow) setSelectedRow(row => Math.min(11, row + 1));
       else if (key.leftArrow) changeSetting(-1);
       else if (key.rightArrow || key.return) changeSetting(1);
       return;
@@ -698,7 +889,9 @@ export function App({
     if (input === ' ') setPaused(current => !current);
     else if (input.toLowerCase() === 'o') setPanel('settings');
     else if (input.toLowerCase() === 'h') setPanel('help');
-    else if (input.toLowerCase() === 'l') openPlaylistManager();
+    else if (input.toLowerCase() === 't') {
+      setAutoSwitchEnabled(current => !current);
+    } else if (input.toLowerCase() === 'l') openPlaylistManager();
     else if (input.toLowerCase() === 'p') {
       setPresetQuery('');
       const presetsForCurrentTag =
@@ -834,6 +1027,9 @@ export function App({
           selectedDisplayIndex={selectedDisplayIndex}
           fullscreenOutput={fullscreenOutput}
           visualizerSettings={visualizerSettings}
+          autoSwitchEnabled={autoSwitchEnabled}
+          autoSwitchSeconds={autoSwitchSeconds}
+          shuffleEnabled={shuffleEnabled}
           selectedRow={selectedRow}
         />
       ) : panel === 'playlists' ? (
@@ -876,13 +1072,20 @@ export function App({
             playlist={activePlaylist}
             presets={activePresets}
             currentPreset={currentPreset}
+            upcomingOverride={shuffleEnabled ? shuffleUpcomingPresets : undefined}
+            autoSwitchEnabled={autoSwitchEnabled}
+            autoSwitchSeconds={autoSwitchSeconds}
+            autoSwitchRemaining={autoSwitchRemaining}
+            autoSwitchPaused={!hasSignal || paused}
+            autoSwitchPauseReason={paused ? 'manual' : 'silence'}
+            shuffleEnabled={shuffleEnabled}
           />
           <Box flexDirection="column" marginTop={1}>
             <Text dimColor wrap="truncate-end">
               L playlists · P presets · N/B changer · V moteur · F plein écran
             </Text>
             <Box justifyContent="space-between">
-              <Text dimColor>O options · H aide · Q quitter</Text>
+              <Text dimColor>T auto · O options · H aide · Q quitter</Text>
               <Text dimColor>{SMOOTHING_PROFILES[smoothing].label} · {meterFloor} dB</Text>
             </Box>
           </Box>

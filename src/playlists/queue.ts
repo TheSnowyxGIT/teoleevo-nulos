@@ -31,3 +31,14 @@ export function buildPresetQueue(
   }
   return {current: selectedPreset, upcoming};
 }
+
+export function nextSequentialPreset(
+  playlistPresets: Preset[],
+  currentPreset?: Preset,
+): Preset | undefined {
+  if (playlistPresets.length === 0) return undefined;
+  const currentIndex = playlistPresets.findIndex(preset => preset.id === currentPreset?.id);
+  return playlistPresets[
+    currentIndex < 0 ? 0 : (currentIndex + 1) % playlistPresets.length
+  ];
+}

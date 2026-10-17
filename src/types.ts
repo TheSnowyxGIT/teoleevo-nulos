@@ -108,6 +108,9 @@ export interface UserSettings {
   selectedPlaylistId: string;
   presetTagFilter: 'all' | PresetTag;
   customPlaylists: CustomPlaylist[];
+  autoSwitchEnabled: boolean;
+  autoSwitchSeconds: number;
+  shuffleEnabled: boolean;
 }
 
 export type VisualizerStatus =

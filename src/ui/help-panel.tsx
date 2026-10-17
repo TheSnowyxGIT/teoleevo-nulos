@@ -20,6 +20,9 @@ export function HelpPanel(): React.JSX.Element {
         <Text bold>L</Text> Playlists : Entrée détail, A activer, M fusion multiple
       </Text>
       <Text>
+        <Text bold>T</Text> Activer / désactiver la lecture automatique
+      </Text>
+      <Text>
         <Text bold>Tab</Text> Filtrer les presets par build-up, drop, verse ou other
       </Text>
       <Text>
