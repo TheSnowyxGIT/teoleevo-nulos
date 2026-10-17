@@ -5,6 +5,8 @@ export const DEFAULT_OPTIONS: AppOptions = {
   fftSize: 2048,
   fps: 30,
   uiFps: 10,
+  webEnabled: true,
+  webPort: 4317,
   meterFloor: -70,
   visualizerSettings: {
     frameRate: 60,

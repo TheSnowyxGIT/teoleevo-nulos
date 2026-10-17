@@ -9,6 +9,8 @@ test('parseCli uses production defaults', () => {
   assert.equal(parsed.options.fftSize, 2048);
   assert.equal(parsed.options.fps, 30);
   assert.equal(parsed.options.uiFps, 10);
+  assert.equal(parsed.options.webEnabled, true);
+  assert.equal(parsed.options.webPort, 4317);
   assert.equal(parsed.options.meterFloor, -70);
   assert.deepEqual(parsed.options.visualizerSettings, {
     frameRate: 60,
@@ -26,6 +28,9 @@ test('parseCli accepts supported analysis options', () => {
     '60',
     '--ui-fps',
     '15',
+    '--web-port',
+    '8080',
+    '--no-web',
     '--floor',
     '-80',
     '--device',
@@ -53,6 +58,8 @@ test('parseCli accepts supported analysis options', () => {
     fftSize: 4096,
     fps: 60,
     uiFps: 15,
+    webEnabled: false,
+    webPort: 8080,
     meterFloor: -80,
     deviceId: 'speaker-id',
     nestDropDirectory: 'NestDropClassicV2x2',
@@ -93,6 +100,7 @@ test('parseCli rejects unsupported values', () => {
   assert.throws(() => parseCli(['--fft-size', '1000']), /1024, 2048 ou 4096/);
   assert.throws(() => parseCli(['--fps', '2']), /entre 10 et 60/);
   assert.throws(() => parseCli(['--ui-fps', '2']), /entre 5 et 30/);
+  assert.throws(() => parseCli(['--web-port', '70000']), /entre 1 et 65535/);
   assert.throws(() => parseCli(['--visual-speed', '-0.1']), /entre 0 et 2/);
   assert.throws(() => parseCli(['--visual-fps', '2']), /entre 10 et 120/);
   assert.throws(() => parseCli(['--visual-volume', '1.1']), /entre 0 et 1/);

@@ -3,6 +3,7 @@ import React from 'react';
 import {render} from 'ink';
 import {parseCli, HELP_TEXT} from './cli-options.js';
 import {createCapture} from './audio/create-capture.js';
+import {LocalControlServer} from './control/server.js';
 import {
   findDefaultNestDropDirectory,
   findDefaultPresetDirectory,
@@ -50,18 +51,27 @@ async function main(): Promise<void> {
 
     const source = createCapture(options);
     const visualizer = createVisualizer(options);
+    const controlServer = options.webEnabled
+      ? new LocalControlServer(options.webPort)
+      : undefined;
+    await controlServer?.start();
     const instance = render(
       <App
         source={source}
         options={options}
         presets={presets}
         visualizer={visualizer}
+        controlServer={controlServer}
         initialSettings={initialSettings}
         saveSettings={settings => settingsStore.save(settings)}
       />,
       {incrementalRendering: true},
     );
-    await instance.waitUntilExit();
+    try {
+      await instance.waitUntilExit();
+    } finally {
+      await controlServer?.stop();
+    }
   } catch (error) {
     process.stderr.write(
       `Erreur: ${error instanceof Error ? error.message : String(error)}\n\n${HELP_TEXT}`,

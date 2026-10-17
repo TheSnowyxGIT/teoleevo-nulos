@@ -47,6 +47,9 @@ Provide the NestDrop folder once:
 pnpm dev:audio -- --nestdrop-dir "C:\Tools\NestDropClassicV2x2"
 ```
 
+Open [http://127.0.0.1:4317](http://127.0.0.1:4317) in Chrome to control the
+same application from the browser.
+
 The path is saved automatically. For every later launch, use:
 
 ```powershell

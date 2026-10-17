@@ -13,6 +13,8 @@ Options:
   --fft-size <taille>    1024, 2048 (défaut) ou 4096
   --fps <nombre>         Analyse audio entre 10 et 60 Hz (défaut: 30)
   --ui-fps <nombre>      Rafraîchissement Ink entre 5 et 30 FPS (défaut: 10)
+  --web-port <nombre>    Port du contrôleur Chrome (défaut: 4317)
+  --no-web               Désactive le contrôleur localhost
   --floor <dB>           Plancher des vumètres, de -100 à -30 (défaut: -70)
   --helper <chemin>      Chemin explicite vers AudioCapture.exe
   --nestdrop-dir <chemin> Racine de l'installation NestDropClassicV2x2 (mémorisée)
@@ -90,6 +92,18 @@ export function parseCli(args: string[], defaults: AppOptions = DEFAULT_OPTIONS)
         index += 1;
         break;
       }
+      case '--web-port': {
+        const value = Number(readValue(args, index, argument));
+        if (!Number.isInteger(value) || value < 1 || value > 65_535) {
+          throw new Error('--web-port doit être un entier entre 1 et 65535');
+        }
+        options.webPort = value;
+        index += 1;
+        break;
+      }
+      case '--no-web':
+        options.webEnabled = false;
+        break;
       case '--floor': {
         const value = Number(readValue(args, index, argument));
         if (!Number.isFinite(value) || value < -100 || value > -30) {

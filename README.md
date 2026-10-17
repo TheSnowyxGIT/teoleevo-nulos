@@ -16,6 +16,7 @@ pilotables sans interrompre le moteur de rendu.
 - niveau en dBFS, vumètres lissés et historique en direct ;
 - rendu Ink limité indépendamment de l'analyse audio pour rester réactif ;
 - options interactives pour la sortie, la réactivité et l’échelle ;
+- contrôleur Chrome local synchronisé avec Ink sur `http://127.0.0.1:4317` ;
 - catalogue récursif, recherche instantanée et filtres de tags dans les presets `.milk` ;
 - quatre playlists système par tag et playlists personnalisées éditables ;
 - copie et fusion de playlists avec sauvegarde automatique des préférences ;
@@ -47,6 +48,12 @@ pnpm renderer:install
 pnpm renderer:build
 pnpm dev:audio
 ```
+
+Ouvrez ensuite `http://127.0.0.1:4317` dans Chrome. L’interface web et Ink
+contrôlent le même moteur : niveaux audio, presets, playlists et leur édition,
+sorties audio/vidéo, plein écran, auto-switch et réglages MilkDrop restent
+synchronisés. Le serveur écoute uniquement sur la machine locale. Utilisez
+`--no-web` pour le désactiver ou `--web-port <port>` pour changer son port.
 
 Depuis WSL, le projet peut employer le SDK .NET installé sur Windows :
 
@@ -209,6 +216,8 @@ originale de NestDrop, notamment `Plugins\Milkdrop2\Presets`,
 --fft-size <taille>    1024, 2048 ou 4096
 --fps <nombre>         de 10 à 60
 --ui-fps <nombre>      rafraîchissement du terminal de 5 à 30 (défaut 10)
+--web-port <nombre>    port du contrôleur Chrome (défaut 4317)
+--no-web               désactive le contrôleur localhost
 --floor <dB>           plancher visuel de -100 à -30 dB
 --helper <chemin>      chemin explicite vers AudioCapture.exe
 --nestdrop-dir <chemin> dossier racine de NestDropClassicV2x2 (mémorisé)

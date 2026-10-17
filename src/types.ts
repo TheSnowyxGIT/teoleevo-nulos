@@ -66,6 +66,8 @@ export interface AppOptions {
   fftSize: 1024 | 2048 | 4096;
   fps: number;
   uiFps: number;
+  webEnabled: boolean;
+  webPort: number;
   meterFloor: number;
   helperPath?: string;
   nestDropDirectory?: string;

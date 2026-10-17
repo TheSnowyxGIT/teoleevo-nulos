@@ -1,5 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Box, Text, useApp, useInput, useWindowSize} from 'ink';
+import type {LocalControlServer} from '../control/server.js';
+import type {ControlCommand} from '../control/types.js';
 import {
   ANIMATION_SPEEDS,
   AUTO_SWITCH_INTERVALS,
@@ -44,7 +46,7 @@ import {
   uniquePlaylistName,
 } from '../playlists/playlists.js';
 import {advanceAutoSwitchCountdown} from '../playlists/auto-switch.js';
-import {nextSequentialPreset} from '../playlists/queue.js';
+import {buildPresetQueue, nextSequentialPreset} from '../playlists/queue.js';
 import {createShuffleCycle} from '../playlists/shuffle.js';
 import {HelpPanel} from './help-panel.js';
 import {Meter} from './meter.js';
@@ -62,6 +64,7 @@ interface AppProps {
   options: AppOptions;
   presets: Preset[];
   visualizer: VisualizerController;
+  controlServer?: LocalControlServer;
   initialSettings: UserSettings;
   saveSettings(settings: UserSettings): Promise<void>;
 }
@@ -79,6 +82,7 @@ export function App({
   options,
   presets,
   visualizer,
+  controlServer,
   initialSettings,
   saveSettings,
 }: AppProps): React.JSX.Element {
@@ -159,12 +163,14 @@ export function App({
   const showHistoryRef = useRef(showHistory);
   const hasSignalRef = useRef(false);
   const lastUiFrameAtRef = useRef(0);
+  const dbRef = useRef<BandValues>({bass: -Infinity, mids: -Infinity, treble: -Infinity});
   const levelsRef = useRef<BandValues>(EMPTY_BANDS);
   const shuffleUpcomingRef = useRef<string[]>([]);
   const shuffleHistoryRef = useRef<string[]>([]);
   const autoSwitchRemainingMsRef = useRef(
     initialSettings.autoSwitchSeconds * 1000,
   );
+  const controlCommandRef = useRef<(command: ControlCommand) => void>(() => undefined);
   pausedRef.current = paused;
   smoothingRef.current = smoothing;
   meterFloorRef.current = meterFloor;
@@ -202,6 +208,10 @@ export function App({
         .filter((preset): preset is Preset => Boolean(preset)),
     [presetById, shuffleUpcomingIds],
   );
+  const controlQueue = useMemo(
+    () => buildPresetQueue(activePresets, currentPreset, 5),
+    [activePresets, currentPreset],
+  );
 
   const replaceShuffleUpcoming = (ids: string[]): void => {
     shuffleUpcomingRef.current = ids;
@@ -229,10 +239,20 @@ export function App({
             );
           }
           levelsRef.current = next;
-          if (panelRef.current !== 'none') return;
+          dbRef.current = frame.db;
           const minimumInterval = 1000 / uiFpsRef.current;
           if (frame.timestamp - lastUiFrameAtRef.current < minimumInterval) return;
           lastUiFrameAtRef.current = frame.timestamp;
+          controlServer?.updateAudioFrame(
+            next,
+            {
+              bass: Number.isFinite(frame.db.bass) ? frame.db.bass : null,
+              mids: Number.isFinite(frame.db.mids) ? frame.db.mids : null,
+              treble: Number.isFinite(frame.db.treble) ? frame.db.treble : null,
+            },
+            frame.hasSignal,
+          );
+          if (panelRef.current !== 'none') return;
           setDb(frame.db);
           setLevels(next);
           if (showHistoryRef.current) {
@@ -254,7 +274,7 @@ export function App({
     return () => {
       void source.stop();
     };
-  }, [source]);
+  }, [controlServer, source]);
 
   useEffect(() => visualizer.subscribe(setVisualizerStatus), [visualizer]);
 
@@ -567,6 +587,24 @@ export function App({
     });
   };
 
+  const setRendererRunning = (enabled: boolean): void => {
+    const running =
+      visualizerStatus.state === 'running' || visualizerStatus.state === 'starting';
+    if (!enabled) {
+      if (running) void visualizer.stop();
+      return;
+    }
+    if (running) return;
+    if (currentPreset) {
+      void visualizer.showPreset(currentPreset);
+      return;
+    }
+    const firstVisualPreset =
+      activePresets.find(preset => !preset.relativePath.startsWith('! Transition')) ??
+      activePresets[0];
+    if (firstVisualPreset) showPreset(firstVisualPreset);
+  };
+
   const changeVisualizerSetting = <Key extends keyof VisualizerSettings>(
     key: Key,
     values: readonly VisualizerSettings[Key][],
@@ -688,6 +726,18 @@ export function App({
     setPlaylistDialog({type: 'browse'});
   };
 
+  const addCustomPlaylist = (name: string, presetIds: string[] = []): void => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    const playlist = createCustomPlaylist(
+      uniquePlaylistName(trimmedName, playlists),
+      presetIds,
+    );
+    setCustomPlaylists(current => [...current, playlist]);
+    setActivePlaylistId(playlist.id);
+    setPresetTagFilter('all');
+  };
+
   const togglePresetInDetailPlaylist = (presetId: string): void => {
     if (!detailPlaylistId || detailPlaylist?.readonly) return;
     setCustomPlaylists(current =>
@@ -699,6 +749,275 @@ export function App({
       }),
     );
   };
+
+  controlCommandRef.current = command => {
+    switch (command.type) {
+      case 'set-paused':
+        setPaused(Boolean(command.enabled));
+        break;
+      case 'set-renderer-running':
+        setRendererRunning(Boolean(command.enabled));
+        break;
+      case 'set-fullscreen': {
+        const display = displays[selectedDisplayIndex];
+        if (!display) break;
+        setFullscreenOutput(Boolean(command.enabled));
+        void visualizer.setFullscreen(Boolean(command.enabled), display);
+        break;
+      }
+      case 'cycle-preset':
+        if (command.direction === 1 || command.direction === -1) {
+          cyclePreset(command.direction);
+        }
+        break;
+      case 'show-preset': {
+        const preset = presetById.get(command.presetId);
+        if (preset) showPreset(preset, false);
+        break;
+      }
+      case 'set-device':
+        if (devices.some(device => device.id === command.deviceId)) {
+          void source.selectDevice(command.deviceId);
+        }
+        break;
+      case 'set-display': {
+        const index = displays.findIndex(display => display.id === command.displayId);
+        const display = displays[index];
+        if (!display) break;
+        setSelectedDisplayIndex(index);
+        void visualizer.setFullscreen(fullscreenOutput, display);
+        break;
+      }
+      case 'set-smoothing':
+        if (SMOOTHING_ORDER.includes(command.value)) setSmoothing(command.value);
+        break;
+      case 'set-meter-floor':
+        if (METER_FLOORS.some(value => value === command.value)) {
+          setMeterFloor(command.value);
+        }
+        break;
+      case 'set-show-history':
+        setShowHistory(Boolean(command.enabled));
+        break;
+      case 'set-ui-fps':
+        if (TERMINAL_FRAME_RATES.some(value => value === command.value)) {
+          setUiFps(command.value);
+        }
+        break;
+      case 'set-visualizer-settings':
+        setVisualizerSettings(current => {
+          const requested = command.value;
+          const next = {
+            frameRate:
+              Number.isInteger(requested.frameRate) &&
+              requested.frameRate !== undefined &&
+              requested.frameRate >= 10 &&
+              requested.frameRate <= 120
+                ? requested.frameRate
+                : current.frameRate,
+            speed:
+              typeof requested.speed === 'number' &&
+              Number.isFinite(requested.speed) &&
+              requested.speed >= 0 &&
+              requested.speed <= 2
+                ? requested.speed
+                : current.speed,
+            audioGain:
+              typeof requested.audioGain === 'number' &&
+              Number.isFinite(requested.audioGain) &&
+              requested.audioGain >= 0 &&
+              requested.audioGain <= 1
+                ? requested.audioGain
+                : current.audioGain,
+          };
+          void visualizer.configure(next);
+          return next;
+        });
+        break;
+      case 'set-preset-tag-filter':
+        if (PRESET_TAG_FILTERS.includes(command.value)) {
+          setPresetTagFilter(command.value);
+          setPresetIndex(0);
+        }
+        break;
+      case 'set-active-playlist':
+        if (playlists.some(playlist => playlist.id === command.playlistId)) {
+          setActivePlaylistId(command.playlistId);
+          setPresetTagFilter('all');
+        }
+        break;
+      case 'set-auto-switch':
+        setAutoSwitchEnabled(Boolean(command.enabled));
+        break;
+      case 'set-auto-seconds':
+        if (
+          Number.isFinite(command.value) &&
+          command.value >= 1 &&
+          command.value <= 3600
+        ) setAutoSwitchSeconds(command.value);
+        break;
+      case 'set-shuffle':
+        setShuffleEnabled(Boolean(command.enabled));
+        break;
+      case 'create-playlist':
+        addCustomPlaylist(command.name);
+        break;
+      case 'copy-playlist': {
+        const sourcePlaylist = playlists.find(
+          playlist => playlist.id === command.sourceId,
+        );
+        if (sourcePlaylist) addCustomPlaylist(command.name, sourcePlaylist.presetIds);
+        break;
+      }
+      case 'merge-playlists': {
+        const sources = [...new Set(command.sourceIds)]
+          .map(id => playlists.find(playlist => playlist.id === id))
+          .filter((playlist): playlist is Playlist => Boolean(playlist));
+        if (sources.length >= 2) {
+          addCustomPlaylist(command.name, mergePresetIds(...sources));
+        }
+        break;
+      }
+      case 'rename-playlist': {
+        const target = playlists.find(playlist => playlist.id === command.playlistId);
+        if (!target || target.readonly || !command.name.trim()) break;
+        const name = uniquePlaylistName(
+          command.name,
+          playlists.filter(playlist => playlist.id !== target.id),
+        );
+        setCustomPlaylists(current =>
+          current.map(playlist => playlist.id === target.id ? {...playlist, name} : playlist),
+        );
+        break;
+      }
+      case 'delete-playlist': {
+        const target = playlists.find(playlist => playlist.id === command.playlistId);
+        if (target && !target.readonly) deletePlaylist(target.id);
+        break;
+      }
+      case 'set-playlist-preset': {
+        const target = playlists.find(playlist => playlist.id === command.playlistId);
+        if (!target || target.readonly || !presetById.has(command.presetId)) break;
+        setCustomPlaylists(current =>
+          current.map(playlist => {
+            if (playlist.id !== target.id) return playlist;
+            const contains = playlist.presetIds.includes(command.presetId);
+            if (command.included && !contains) {
+              return {...playlist, presetIds: [...playlist.presetIds, command.presetId]};
+            }
+            if (!command.included && contains) {
+              return {
+                ...playlist,
+                presetIds: playlist.presetIds.filter(id => id !== command.presetId),
+              };
+            }
+            return playlist;
+          }),
+        );
+        break;
+      }
+      case 'quit':
+        void Promise.all([source.stop(), visualizer.stop()]).finally(exit);
+        break;
+    }
+  };
+
+  useEffect(
+    () => controlServer?.subscribe(command => controlCommandRef.current(command)),
+    [controlServer],
+  );
+
+  useEffect(() => {
+    controlServer?.updateCatalog({
+      devices,
+      displays,
+      presets: presets.map(preset => ({
+        id: preset.id,
+        name: preset.name,
+        relativePath: preset.relativePath,
+        tags: preset.tags,
+      })),
+      playlists,
+    });
+  }, [controlServer, devices, displays, playlists, presets]);
+
+  useEffect(() => {
+    const latestDb = dbRef.current;
+    controlServer?.updateState({
+      audio: {
+        state: status.state,
+        message: status.message,
+        ...(info?.deviceId ? {deviceId: info.deviceId} : {}),
+        ...(info?.deviceName ? {deviceName: info.deviceName} : {}),
+        hasSignal,
+        paused,
+        db: {
+          bass: Number.isFinite(latestDb.bass) ? latestDb.bass : null,
+          mids: Number.isFinite(latestDb.mids) ? latestDb.mids : null,
+          treble: Number.isFinite(latestDb.treble) ? latestDb.treble : null,
+        },
+        levels: levelsRef.current,
+      },
+      visualizer: {
+        state: visualizerStatus.state,
+        message: visualizerStatus.message,
+        running:
+          visualizerStatus.state === 'running' || visualizerStatus.state === 'starting',
+        fullscreen: fullscreenOutput,
+        ...(displays[selectedDisplayIndex]
+          ? {selectedDisplayId: displays[selectedDisplayIndex]?.id}
+          : {}),
+      },
+      ...(currentPreset ? {currentPresetId: currentPreset.id} : {}),
+      ...(activePlaylist ? {activePlaylistId: activePlaylist.id} : {}),
+      queue: {
+        ...(controlQueue.priority ? {priorityId: controlQueue.priority.id} : {}),
+        ...(controlQueue.current ? {currentId: controlQueue.current.id} : {}),
+        upcomingIds: (shuffleEnabled
+          ? shuffleUpcomingPresets.slice(0, 5)
+          : controlQueue.upcoming
+        ).map(preset => preset.id),
+      },
+      settings: {
+        smoothing,
+        meterFloor,
+        showHistory,
+        uiFps,
+        visualizer: visualizerSettings,
+        presetTagFilter,
+        autoSwitchEnabled,
+        autoSwitchSeconds,
+        autoSwitchRemaining,
+        shuffleEnabled,
+      },
+    });
+  }, [
+    activePlaylist,
+    autoSwitchEnabled,
+    autoSwitchRemaining,
+    autoSwitchSeconds,
+    controlQueue,
+    controlServer,
+    currentPreset,
+    db,
+    displays,
+    fullscreenOutput,
+    hasSignal,
+    info,
+    levels,
+    meterFloor,
+    paused,
+    presetTagFilter,
+    selectedDisplayIndex,
+    showHistory,
+    shuffleEnabled,
+    shuffleUpcomingPresets,
+    smoothing,
+    status,
+    uiFps,
+    visualizerSettings,
+    visualizerStatus,
+  ]);
 
   useInput((input, key) => {
     if (panel === 'playlist-detail') {
@@ -934,16 +1253,9 @@ export function App({
       );
       setPanel('presets');
     } else if (input.toLowerCase() === 'v') {
-      if (visualizerStatus.state === 'running' || visualizerStatus.state === 'starting') {
-        void visualizer.stop();
-      } else if (currentPreset) {
-        void visualizer.showPreset(currentPreset);
-      } else {
-        const firstVisualPreset =
-          activePresets.find(preset => !preset.relativePath.startsWith('! Transition')) ??
-          activePresets[0];
-        if (firstVisualPreset) showPreset(firstVisualPreset);
-      }
+      setRendererRunning(
+        visualizerStatus.state !== 'running' && visualizerStatus.state !== 'starting',
+      );
     } else if (input.toLowerCase() === 'n') cyclePreset(1);
     else if (input.toLowerCase() === 'b') cyclePreset(-1);
     else if (input.toLowerCase() === 'd') cycleDevice(1);
@@ -970,7 +1282,10 @@ export function App({
   const header = (
     <Box justifyContent="space-between">
       <Text bold color="cyan">
-        TEOLEEVO <Text dimColor>// LIVE AUDIO SPECTRUM</Text>
+        TEOLEEVO{' '}
+        <Text dimColor>
+          {controlServer ? `// WEB ${controlServer.url}` : '// LIVE AUDIO SPECTRUM'}
+        </Text>
       </Text>
       <Text color={statusColor}>
         {statusDot} {statusLabel}
